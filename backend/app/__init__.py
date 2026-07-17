@@ -1,0 +1,1 @@
+"""Stock Strategy Platform backend."""

@@ -1,0 +1,6 @@
+date,ticker,action,shares,price,fees
+2024-01-15,AAPL,buy,10,185.92,0
+2024-03-04,MSFT,buy,5,401.20,0
+2024-06-11,AAPL,buy,5,207.15,0
+2025-02-20,MSFT,sell,2,415.00,0
+2025-05-09,VOO,buy,8,512.30,0
