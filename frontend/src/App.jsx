@@ -2,14 +2,16 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Placeholder from './pages/Placeholder.jsx'
+import Scanner from './pages/Scanner.jsx'
+import StockDetail from './pages/StockDetail.jsx'
 
 export default function App() {
   return (
     <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<Dashboard />} />
-        <Route path="/scanner" element={<Placeholder title="Stock Scanner" phase={4} />} />
-        <Route path="/stocks/:symbol" element={<Placeholder title="Stock Detail" phase={4} />} />
+        <Route path="/scanner" element={<Scanner />} />
+        <Route path="/stocks/:symbol" element={<StockDetail />} />
         <Route path="/signals" element={<Placeholder title="Signals" phase={3} />} />
         <Route path="/strategies" element={<Placeholder title="Strategies" phase={3} />} />
         <Route path="/backtests" element={<Placeholder title="Backtests" phase={6} />} />

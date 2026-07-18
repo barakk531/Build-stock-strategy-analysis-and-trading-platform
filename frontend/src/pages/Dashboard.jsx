@@ -1,15 +1,34 @@
+import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
+import { getScanner } from '../api/scanner.js'
 import StatusBadge from '../components/StatusBadge.jsx'
 import { useHealth } from '../hooks/useHealth.js'
 
-const upcomingTiles = [
-  { label: 'Tracked stocks', phase: 2 },
-  { label: 'Current buy signals', phase: 3 },
-  { label: 'Current sell signals', phase: 3 },
-  { label: 'Active paper accounts', phase: 7 },
-]
+function useMarketPulse() {
+  return useQuery({
+    queryKey: ['market-pulse'],
+    queryFn: async () => {
+      const [all, buys, sells] = await Promise.all([
+        getScanner({ limit: 1 }),
+        getScanner({ limit: 5, buy_state: true, sort: 'volume_ratio', order: 'desc' }),
+        getScanner({ limit: 1, sell_state: true }),
+      ])
+      return { tracked: all.total, buys: buys.total, sells: sells.total, top: buys.items }
+    },
+    refetchInterval: 120_000,
+  })
+}
 
 export default function Dashboard() {
   const { data, isPending, isError, error, refetch, isFetching } = useHealth()
+  const pulse = useMarketPulse()
+
+  const tiles = [
+    { label: 'Tracked stocks', value: pulse.data?.tracked, to: '/scanner' },
+    { label: 'In buy state now', value: pulse.data?.buys, to: '/scanner?buy_state=1', cls: 'text-emerald-400' },
+    { label: 'In sell state now', value: pulse.data?.sells, to: '/scanner?sell_state=1', cls: 'text-red-400' },
+    { label: 'Active paper accounts', value: null, phase: 7 },
+  ]
 
   return (
     <div className="space-y-6">
@@ -75,14 +94,46 @@ export default function Dashboard() {
       </section>
 
       <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {upcomingTiles.map(({ label, phase }) => (
-          <div key={label} className="rounded-lg border border-slate-800 bg-slate-900 p-4">
-            <p className="text-xs text-slate-500">{label}</p>
-            <p className="mt-2 text-2xl font-semibold text-slate-600">—</p>
-            <p className="mt-1 text-xs text-slate-600">arrives in Phase {phase}</p>
-          </div>
-        ))}
+        {tiles.map(({ label, value, to, cls, phase }) => {
+          const body = (
+            <>
+              <p className="text-xs text-slate-500">{label}</p>
+              <p className={`mt-2 text-2xl font-semibold tabular-nums ${cls ?? 'text-slate-100'}`}>
+                {value ?? '—'}
+              </p>
+              {phase && <p className="mt-1 text-xs text-slate-600">arrives in Phase {phase}</p>}
+            </>
+          )
+          return to ? (
+            <Link key={label} to={to} className="rounded-lg border border-slate-800 bg-slate-900 p-4 hover:border-slate-700">
+              {body}
+            </Link>
+          ) : (
+            <div key={label} className="rounded-lg border border-slate-800 bg-slate-900 p-4">{body}</div>
+          )
+        })}
       </section>
+
+      {pulse.data?.top?.length > 0 && (
+        <section className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+          <h2 className="text-sm font-medium tracking-wide text-slate-400 uppercase">
+            Buy states by volume ratio
+          </h2>
+          <div className="mt-2 divide-y divide-slate-800/60">
+            {pulse.data.top.map((r) => (
+              <Link
+                key={r.symbol}
+                to={`/stocks/${r.symbol}`}
+                className="flex items-center justify-between py-2 text-sm hover:bg-slate-800/40"
+              >
+                <span className="font-medium text-slate-100">{r.symbol}</span>
+                <span className="max-w-56 truncate text-slate-400">{r.company_name}</span>
+                <span className="tabular-nums text-emerald-400">{r.volume_ratio?.toFixed(2)}x vol</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   )
 }
