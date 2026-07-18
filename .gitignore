@@ -12,6 +12,11 @@ dist/
 # Environment & secrets
 .env
 
+# Vendored third-party skill collections (166MB of external tooling; vetted,
+# kept on disk, not versioned). The vetting record README stays tracked.
+skills/*
+!skills/README.md
+
 # Generated from the local Windows cert store; machine-specific.
 certs/
 

@@ -9,7 +9,12 @@
 - Ticker formatting differs (e.g. `BRK.B` → `BRK-B`); the universe sync stores
   both the canonical and Yahoo symbols.
 - Adjusted close is used for indicators by default (documented in
-  strategy-rules.md).
+  strategy-rules.md). Downloads run with `auto_adjust=False` so both the raw
+  close and the adjusted close are stored; when Yahoo omits the adjusted value
+  for a row, it falls back to the raw close.
+- The daily sync re-fetches a trailing overlap window (default 5 days) and
+  upserts, so revised rows overwrite quietly and reruns never duplicate
+  (unique `stock_id + trade_date`).
 
 ## S&P 500 membership
 

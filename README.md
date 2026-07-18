@@ -4,9 +4,21 @@ Full-stack S&P 500 technical-analysis platform: daily Yahoo Finance data,
 configurable SMA-trend + volume strategies, buy/sell signal detection,
 backtesting, multi-account paper trading, and Telegram alerts.
 
-**Status: Phase 1 (foundation).** Services boot, the frontend talks to the
-backend, and migrations run. Market data, indicators, and signals arrive in
-Phases 2–3 — see the phase map in [docs/architecture.md](docs/architecture.md).
+**Status: Phase 2 (market data).** The S&P 500 universe syncs from its public
+constituent list, and 20 years of daily Yahoo Finance history loads
+incrementally and idempotently. Indicators and signals arrive in Phase 3 — see
+the phase map in [docs/architecture.md](docs/architecture.md).
+
+Key Phase 2 endpoints (see `/docs` for all):
+
+```text
+POST /api/v1/admin/universe/sync      # refresh S&P 500 membership
+POST /api/v1/admin/prices/sync        # backfill/incremental daily prices
+POST /api/v1/admin/metadata/refresh   # market cap / exchange metadata
+GET  /api/v1/admin/data-health        # coverage, staleness, gaps
+GET  /api/v1/stocks?search=apple      # list/search stocks
+GET  /api/v1/stocks/AAPL/prices       # daily OHLCV series
+```
 
 > This platform is for research, education, technical analysis, and simulated
 > paper trading only. It does not provide personalized financial advice and

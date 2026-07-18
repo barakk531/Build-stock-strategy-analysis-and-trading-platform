@@ -39,6 +39,18 @@ class Settings(BaseSettings):
     # All market scheduling uses this zone — never the server's local date.
     market_timezone: str = "America/New_York"
 
+    # --- Market data (Phase 2) ---
+    # Current S&P 500 constituents. Fetched via curl_cffi (BoringSSL) so it works
+    # behind Avast's TLS interception on this machine, where stdlib ssl fails.
+    sp500_source_url: str = "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies"
+    price_history_years: int = 20
+    # Re-fetch a small trailing window on incremental sync to pick up revisions.
+    price_sync_overlap_days: int = 5
+    # yfinance batch download size and retry policy.
+    yahoo_batch_size: int = 40
+    yahoo_max_retries: int = 3
+    yahoo_backoff_seconds: float = 2.0
+
     # Telegram (used from Phase 5; declared now so .env stays the single schema)
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""

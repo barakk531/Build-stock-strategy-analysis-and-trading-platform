@@ -1,2 +1,10 @@
-"""SQLAlchemy ORM models. First tables (stocks, daily_prices, ...) arrive in
-Phase 2; every model module must also be imported in app.db.base for Alembic."""
+"""SQLAlchemy ORM models.
+
+Importing this package registers every table on Base.metadata — Alembic's
+env.py relies on that. Add new model modules to the imports below.
+"""
+
+from app.models.daily_price import DailyPrice
+from app.models.stock import Stock
+
+__all__ = ["DailyPrice", "Stock"]
