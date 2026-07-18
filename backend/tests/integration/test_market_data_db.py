@@ -50,24 +50,38 @@ def test_upsert_constituents_idempotent_and_deactivates(db, cleanup_symbols):
     sym_b = _unique_symbol("ZZB")
     cleanup_symbols.extend([sym_a, sym_b])
 
-    rows = [
-        {"symbol": sym_a, "yahoo_symbol": sym_a, "company_name": "Test A"},
-        {"symbol": sym_b, "yahoo_symbol": sym_b, "company_name": "Test B"},
-    ]
-    stock_repository.upsert_constituents(db, [dict(r) for r in rows])
-    stock_repository.upsert_constituents(db, [dict(r) for r in rows])  # rerun: no dupes
+    # A partial universe deactivates every symbol not in it — snapshot the
+    # shared dev DB's active set so it can be restored no matter what.
+    before_active = {s.symbol for s in db.query(Stock).filter(Stock.is_active).all()}
+    try:
+        rows = [
+            {"symbol": sym_a, "yahoo_symbol": sym_a, "company_name": "Test A"},
+            {"symbol": sym_b, "yahoo_symbol": sym_b, "company_name": "Test B"},
+        ]
+        stock_repository.upsert_constituents(
+            db, [dict(r) for r in rows], deactivate_missing=False
+        )
+        stock_repository.upsert_constituents(  # rerun: no dupes
+            db, [dict(r) for r in rows], deactivate_missing=False
+        )
 
-    stored = db.query(Stock).filter(Stock.symbol.in_([sym_a, sym_b])).all()
-    assert len(stored) == 2
-    assert all(s.is_active for s in stored)
+        stored = db.query(Stock).filter(Stock.symbol.in_([sym_a, sym_b])).all()
+        assert len(stored) == 2
+        assert all(s.is_active for s in stored)
 
-    # Next sync drops sym_b -> deactivated, never deleted. (This also
-    # deactivates other rows in a shared dev DB, so restore state afterwards.)
-    stock_repository.upsert_constituents(db, [dict(rows[0])])
-    a = stock_repository.get_by_symbol(db, sym_a)
-    b = stock_repository.get_by_symbol(db, sym_b)
-    assert a.is_active is True
-    assert b is not None and b.is_active is False
+        # Next sync drops sym_b -> deactivated, never deleted.
+        stock_repository.upsert_constituents(db, [dict(rows[0])])
+        a = stock_repository.get_by_symbol(db, sym_a)
+        b = stock_repository.get_by_symbol(db, sym_b)
+        assert a.is_active is True
+        assert b is not None and b.is_active is False
+    finally:
+        if before_active:
+            db.query(Stock).filter(Stock.symbol.in_(before_active)).update(
+                {"is_active": True}, synchronize_session=False
+            )
+            db.commit()
+            db.expire_all()
 
 
 def test_price_upsert_idempotent_and_revising(db, cleanup_symbols):
@@ -77,7 +91,9 @@ def test_price_upsert_idempotent_and_revising(db, cleanup_symbols):
     sym = _unique_symbol("ZZP")
     cleanup_symbols.append(sym)
     stock_repository.upsert_constituents(
-        db, [{"symbol": sym, "yahoo_symbol": sym, "company_name": "Price Test"}]
+        db,
+        [{"symbol": sym, "yahoo_symbol": sym, "company_name": "Price Test"}],
+        deactivate_missing=False,
     )
     stock = stock_repository.get_by_symbol(db, sym)
 
@@ -119,7 +135,9 @@ def test_sync_prices_uses_mocked_downloader(db, cleanup_symbols, monkeypatch):
     sym = _unique_symbol("ZZS")
     cleanup_symbols.append(sym)
     stock_repository.upsert_constituents(
-        db, [{"symbol": sym, "yahoo_symbol": sym, "company_name": "Sync Test"}]
+        db,
+        [{"symbol": sym, "yahoo_symbol": sym, "company_name": "Sync Test"}],
+        deactivate_missing=False,
     )
     stock = stock_repository.get_by_symbol(db, sym)
 

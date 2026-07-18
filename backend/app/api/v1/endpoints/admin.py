@@ -17,14 +17,17 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.daily_price import DailyPrice
 from app.models.stock import Stock
+from app.schemas.analysis import IndicatorRecalcOut, SignalScanOut
 from app.schemas.stock import (
     DataHealthOut,
     MetadataRefreshOut,
     PriceSyncOut,
     UniverseSyncOut,
 )
+from app.services.indicators import storage as indicator_storage
 from app.services.market_data import sync as sync_service
 from app.services.market_data import universe as universe_service
+from app.services.signals import detector as signal_detector
 
 router = APIRouter(prefix="/admin")
 
@@ -55,6 +58,27 @@ def refresh_metadata(
     limit: Annotated[int, Query(ge=1, le=520)] = 60,
 ) -> MetadataRefreshOut:
     return MetadataRefreshOut(**sync_service.refresh_metadata(db, symbols=symbols, limit=limit))
+
+
+@router.post("/indicators/recalculate", response_model=IndicatorRecalcOut)
+def recalculate_indicators(
+    db: DbDep,
+    symbols: Annotated[list[str] | None, Query()] = None,
+) -> IndicatorRecalcOut:
+    return IndicatorRecalcOut(**indicator_storage.recalculate(db, symbols=symbols))
+
+
+@router.post("/signals/scan", response_model=SignalScanOut)
+def scan_signals(
+    db: DbDep,
+    symbols: Annotated[list[str] | None, Query()] = None,
+    strategy_id: Annotated[int | None, Query()] = None,
+) -> SignalScanOut:
+    try:
+        result = signal_detector.scan_all(db, symbols=symbols, strategy_id=strategy_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return SignalScanOut(**result)
 
 
 @router.get("/data-health", response_model=DataHealthOut)

@@ -41,9 +41,14 @@ def list_active_for_sync(db: Session) -> list[Stock]:
     return list(db.scalars(select(Stock).where(Stock.is_active.is_(True)).order_by(Stock.symbol)))
 
 
-def upsert_constituents(db: Session, rows: list[dict]) -> tuple[int, int]:
+def upsert_constituents(
+    db: Session, rows: list[dict], *, deactivate_missing: bool = True
+) -> tuple[int, int]:
     """Idempotent universe sync: insert new constituents, refresh existing ones,
-    and mark stocks missing from `rows` as inactive (never delete).
+    and (when deactivate_missing) mark stocks absent from `rows` as inactive —
+    never delete. Callers passing a PARTIAL list must pass
+    deactivate_missing=False or they will deactivate the rest of the universe;
+    the real sync passes the full parsed list (parser enforces >=400 rows).
 
     Each row needs: symbol, yahoo_symbol; optional: company_name, sector,
     industry, date_added_to_index.
@@ -74,12 +79,14 @@ def upsert_constituents(db: Session, rows: list[dict]) -> tuple[int, int]:
     )
     db.execute(stmt)
 
-    current_symbols = [row["symbol"] for row in rows]
-    deactivated = (
-        db.query(Stock)
-        .filter(Stock.is_active.is_(True), Stock.symbol.notin_(current_symbols))
-        .update({"is_active": False, "updated_at": now}, synchronize_session=False)
-    )
+    deactivated = 0
+    if deactivate_missing:
+        current_symbols = [row["symbol"] for row in rows]
+        deactivated = (
+            db.query(Stock)
+            .filter(Stock.is_active.is_(True), Stock.symbol.notin_(current_symbols))
+            .update({"is_active": False, "updated_at": now}, synchronize_session=False)
+        )
     db.commit()
     # Bulk statements bypass the identity map and expire_on_commit=False keeps
     # loaded objects alive — expire them so later reads see the new state.
