@@ -51,10 +51,15 @@ class Settings(BaseSettings):
     yahoo_max_retries: int = 3
     yahoo_backoff_seconds: float = 2.0
 
-    # Telegram (used from Phase 5; declared now so .env stays the single schema)
+    # Telegram alerts (Phase 5)
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
     telegram_alerts_enabled: bool = False
+    # both | buy | sell
+    telegram_alert_types: str = "both"
+    telegram_min_market_cap: int | None = None
+    # Base URL used for chart links inside alerts.
+    frontend_base_url: str = "http://localhost:5173"
 
     @property
     def cors_origins(self) -> list[str]:

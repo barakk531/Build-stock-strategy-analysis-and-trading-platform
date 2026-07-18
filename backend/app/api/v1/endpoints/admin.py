@@ -28,6 +28,8 @@ from app.services.indicators import storage as indicator_storage
 from app.services.market_data import sync as sync_service
 from app.services.market_data import universe as universe_service
 from app.services.signals import detector as signal_detector
+from app.services.telegram import alerts as telegram_alerts
+from app.services.telegram import client as telegram_client
 
 router = APIRouter(prefix="/admin")
 
@@ -79,6 +81,32 @@ def scan_signals(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return SignalScanOut(**result)
+
+
+@router.post("/telegram/test")
+def telegram_test() -> dict:
+    """Send a test message to the configured chat."""
+    try:
+        message_id = telegram_client.send_message(
+            "✅ <b>Stock Strategy Platform</b> — test message. Alerts are wired up."
+        )
+    except telegram_client.TelegramError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {"sent": True, "telegram_message_id": message_id}
+
+
+@router.post("/telegram/queue")
+def telegram_queue(db: DbDep) -> dict:
+    """Queue alerts for the latest trading day's signals (idempotent)."""
+    return {"queued": telegram_alerts.queue_new_alerts(db)}
+
+
+@router.post("/telegram/process")
+def telegram_process(
+    db: DbDep, limit: Annotated[int, Query(ge=1, le=200)] = 50
+) -> dict:
+    """Send pending alerts with retry tracking."""
+    return telegram_alerts.process_pending(db, limit=limit)
 
 
 @router.get("/data-health", response_model=DataHealthOut)

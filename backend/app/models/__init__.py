@@ -9,5 +9,6 @@ from app.models.daily_price import DailyPrice
 from app.models.signal import Signal
 from app.models.stock import Stock
 from app.models.strategy import Strategy
+from app.models.telegram_alert import TelegramAlert
 
-__all__ = ["DailyIndicator", "DailyPrice", "Signal", "Stock", "Strategy"]
+__all__ = ["DailyIndicator", "DailyPrice", "Signal", "Stock", "Strategy", "TelegramAlert"]
