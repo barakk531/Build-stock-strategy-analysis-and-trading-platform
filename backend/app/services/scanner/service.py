@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import select, true
 from sqlalchemy.orm import Session
 
 from app.models.daily_indicator import DailyIndicator
@@ -57,51 +57,73 @@ def sell_state(
 
 
 def build_snapshot(db: Session) -> list[dict[str, Any]]:
-    """One row per active stock with everything the scanner table shows."""
-    # Latest two price rows per stock (latest close + previous close).
-    rn = (
-        func.row_number()
-        .over(partition_by=DailyPrice.stock_id, order_by=DailyPrice.trade_date.desc())
-        .label("rn")
-    )
-    windowed = select(
-        DailyPrice.stock_id,
-        DailyPrice.trade_date,
-        DailyPrice.close,
-        DailyPrice.adjusted_close,
-        DailyPrice.volume,
-        rn,
-    ).subquery()
-    price_rows = db.execute(select(windowed).where(windowed.c.rn <= 2)).all()
-    latest_price: dict[int, Any] = {}
-    prev_close: dict[int, float | None] = {}
-    for row in price_rows:
-        if row.rn == 1:
-            latest_price[row.stock_id] = row
-        else:
-            prev_close[row.stock_id] = _f(row.adjusted_close)
+    """One row per active stock with everything the scanner table shows.
 
-    # Latest indicator row per stock (DISTINCT ON).
-    indicator_rows = db.scalars(
-        select(DailyIndicator)
-        .distinct(DailyIndicator.stock_id)
-        .order_by(DailyIndicator.stock_id, DailyIndicator.trade_date.desc())
-    ).all()
-    latest_indicator = {row.stock_id: row for row in indicator_rows}
-
-    # Latest signal per stock (DISTINCT ON).
-    signal_rows = db.scalars(
-        select(Signal)
-        .distinct(Signal.stock_id)
-        .order_by(Signal.stock_id, Signal.trade_date.desc(), Signal.id.desc())
-    ).all()
-    latest_signal = {row.stock_id: row for row in signal_rows}
-
+    All per-stock "latest row" lookups use LATERAL subqueries so each stock is
+    an index-backed top-N probe (~500 × 2 rows) — a window function or
+    DISTINCT ON over the full 2M+-row tables costs seconds per request."""
     stocks = db.scalars(
         select(Stock)
         .where(Stock.is_active.is_(True), Stock.symbol.notlike("^%"))
         .order_by(Stock.symbol)
     ).all()
+
+    # Latest two price rows per stock (latest close + previous close).
+    price_lateral = (
+        select(
+            DailyPrice.trade_date,
+            DailyPrice.close,
+            DailyPrice.adjusted_close,
+            DailyPrice.volume,
+        )
+        .where(DailyPrice.stock_id == Stock.id)
+        .order_by(DailyPrice.trade_date.desc())
+        .limit(2)
+        .lateral()
+    )
+    price_rows = db.execute(
+        select(Stock.id.label("stock_id"), price_lateral)
+        .where(Stock.is_active.is_(True))
+        .join(price_lateral, true())
+        .order_by(Stock.id, price_lateral.c.trade_date.desc())
+    ).all()
+    latest_price: dict[int, Any] = {}
+    prev_close: dict[int, float | None] = {}
+    for row in price_rows:
+        if row.stock_id not in latest_price:
+            latest_price[row.stock_id] = row
+        else:
+            prev_close.setdefault(row.stock_id, _f(row.adjusted_close))
+
+    indicator_lateral = (
+        select(DailyIndicator)
+        .where(DailyIndicator.stock_id == Stock.id)
+        .order_by(DailyIndicator.trade_date.desc())
+        .limit(1)
+        .lateral()
+    )
+    latest_indicator = {
+        row.stock_id: row
+        for row in db.execute(
+            select(indicator_lateral).select_from(
+                Stock.__table__.join(indicator_lateral, true())
+            )
+        ).all()
+    }
+
+    signal_lateral = (
+        select(Signal)
+        .where(Signal.stock_id == Stock.id)
+        .order_by(Signal.trade_date.desc(), Signal.id.desc())
+        .limit(1)
+        .lateral()
+    )
+    latest_signal = {
+        row.stock_id: row
+        for row in db.execute(
+            select(signal_lateral).select_from(Stock.__table__.join(signal_lateral, true()))
+        ).all()
+    }
 
     snapshot: list[dict[str, Any]] = []
     for stock in stocks:

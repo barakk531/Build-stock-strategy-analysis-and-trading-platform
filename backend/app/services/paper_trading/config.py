@@ -31,4 +31,11 @@ class AccountSettings(BaseModel):
             raise ValueError("minimum_market_cap must not exceed maximum_market_cap")
         if self.benchmark_symbol is not None:
             self.benchmark_symbol = self.benchmark_symbol.strip().upper() or None
+            if self.benchmark_symbol is not None:
+                from app.services.backtesting.config import SYMBOL_RE
+
+                if not SYMBOL_RE.match(self.benchmark_symbol):
+                    raise ValueError(
+                        f"invalid benchmark symbol: {self.benchmark_symbol!r}"
+                    )
         return self

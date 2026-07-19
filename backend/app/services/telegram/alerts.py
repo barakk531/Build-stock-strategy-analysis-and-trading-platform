@@ -148,7 +148,15 @@ def process_pending(
     query = select(TelegramAlert).where(TelegramAlert.status == PENDING)
     if signal_ids is not None:
         query = query.where(TelegramAlert.signal_id.in_(signal_ids))
-    pending = list(db.scalars(query.order_by(TelegramAlert.id).limit(limit)))
+    # Row-level lock with SKIP LOCKED: concurrent processors (extra workers,
+    # a manual trigger racing the nightly job) each claim disjoint rows, so a
+    # signal can never be SENT twice — the at-most-once guarantee holds at the
+    # database level, not just by scheduling discipline.
+    pending = list(
+        db.scalars(
+            query.order_by(TelegramAlert.id).limit(limit).with_for_update(skip_locked=True)
+        )
+    )
     sent = 0
     failed = 0
     for alert in pending:

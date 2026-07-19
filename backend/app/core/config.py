@@ -54,6 +54,10 @@ class Settings(BaseSettings):
     # Authentication (Phase 9). Empty = auth disabled (local development).
     admin_api_key: str = ""
 
+    # Full-universe simulations hold large frames in memory — cap how many
+    # may run at once (further launches get 429 until one finishes).
+    max_concurrent_backtests: int = 2
+
     # Telegram alerts (Phase 5)
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""

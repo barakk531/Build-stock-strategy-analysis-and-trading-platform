@@ -121,11 +121,15 @@ def _config_from_run(run: BacktestRun) -> BacktestConfig:
 
 
 def _resolve_universe(db: Session, config: BacktestConfig) -> list:
-    """Active S&P 500 stocks passing the configured filters (indices excluded)."""
+    """Active tracked stocks passing the configured filters, indices excluded.
+
+    Manually added (non-S&P) stocks are included — the scanner, signal scans,
+    and paper accounts all trade them, so backtests must see the same
+    universe or paper and backtest results diverge unexplainably."""
     stocks = [
         s
         for s in stock_repository.list_active_for_sync(db)
-        if s.is_sp500 and not s.symbol.startswith("^")
+        if not s.symbol.startswith("^")
     ]
     if config.symbols:
         wanted = set(config.symbols)
@@ -202,6 +206,12 @@ def _execute(db: Session, run: BacktestRun) -> dict:
     )
 
     equity = result.equity["equity"]
+    if benchmark is not None:
+        # Align to the equity calendar so benchmark/excess returns measure the
+        # exact same span as the strategy (edge days can differ otherwise).
+        benchmark = benchmark.reindex(equity.index).ffill().dropna()
+        if len(benchmark) < 2:
+            benchmark, benchmark_note = None, f"benchmark {config.benchmark_symbol}: no overlap"
     trade_dicts = [
         {
             "status": t.status,
@@ -318,7 +328,14 @@ def execute_run(db: Session, run_id: int) -> BacktestRun:
         db.rollback()
         run = db.get(BacktestRun, run_id)
         run.status = "FAILED"
-        run.error_message = str(exc)[:2000]
+        # Expected validation/data errors are user-actionable; anything else
+        # stays in the server log — raw exception text can leak internals.
+        if isinstance(exc, (BacktestDataError, ValueError)):
+            run.error_message = str(exc)[:2000]
+        else:
+            run.error_message = (
+                f"Internal error ({type(exc).__name__}) — see the server log."
+            )
         run.completed_at = datetime.now(UTC)
         db.commit()
         logger.exception("backtest failed id=%d", run_id)

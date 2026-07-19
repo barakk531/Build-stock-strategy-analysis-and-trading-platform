@@ -5,10 +5,11 @@ naturally thanks to idempotent building blocks."""
 from __future__ import annotations
 
 import logging
-from datetime import date, timedelta
+from datetime import timedelta
 
 from sqlalchemy import func, select
 
+from app.core.timeutils import market_today
 from app.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
@@ -86,10 +87,10 @@ def health_check() -> None:
         stuck_orders = db.scalar(
             select(func.count()).where(
                 PaperOrder.status == "PENDING",
-                PaperOrder.signal_date < date.today() - timedelta(days=7),
+                PaperOrder.signal_date < market_today() - timedelta(days=7),
             )
         ) or 0
-        stale = latest is not None and latest < date.today() - timedelta(days=5)
+        stale = latest is not None and latest < market_today() - timedelta(days=5)
         level = logging.WARNING if (stale or failed_alerts or stuck_orders) else logging.INFO
         logger.log(
             level,

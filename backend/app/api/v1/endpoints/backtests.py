@@ -52,6 +52,22 @@ def create_backtest(
     db: DbDep,
     sync: Annotated[bool, Query(description="Execute in-request instead of background")] = False,
 ) -> BacktestSummaryOut:
+    from sqlalchemy import func, select
+
+    from app.core.config import get_settings
+
+    # Guardrail, not a scheduler: full-universe runs hold large frames, so
+    # unbounded concurrent launches could exhaust memory.
+    active = db.scalar(
+        select(func.count()).where(BacktestRun.status.in_(["PENDING", "RUNNING"]))
+    ) or 0
+    limit = get_settings().max_concurrent_backtests
+    if active >= limit:
+        raise HTTPException(
+            status_code=429,
+            detail=f"{active} backtests already queued/running (limit {limit}) — "
+            "wait for one to finish or delete a stuck run.",
+        )
     try:
         run = runner.create_run(db, payload)
     except ValueError as exc:

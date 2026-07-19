@@ -231,3 +231,30 @@ def test_api_create_poll_and_delete(db, seeded):
     deleted = client.delete(f"/api/v1/backtests/{body['id']}")
     assert deleted.status_code == 204
     assert client.get(f"/api/v1/backtests/{body['id']}").status_code == 404
+
+
+def test_create_rejected_when_concurrency_limit_reached(db, seeded):
+    from fastapi.testclient import TestClient
+
+    from app.core.config import get_settings
+    from app.main import app
+    from app.services.backtesting import runner
+
+    # Fill the queue with PENDING runs (created, never executed) up to the cap.
+    limit = get_settings().max_concurrent_backtests
+    for i in range(limit):
+        runner.create_run(db, _config([seeded["plain"]], name=f"itest cap {i}"))
+
+    client = TestClient(app)
+    payload = {
+        "name": "itest cap over",
+        "start_date": START.isoformat(),
+        "end_date": END.isoformat(),
+        "initial_cash": 50_000,
+        "symbols": [seeded["plain"]],
+        "parameters": {"volume_multiplier": 1.2},
+        "benchmark_symbol": None,
+    }
+    resp = client.post("/api/v1/backtests", json=payload)
+    assert resp.status_code == 429, resp.text
+    assert "limit" in resp.json()["detail"].lower()

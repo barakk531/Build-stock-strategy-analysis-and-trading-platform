@@ -407,7 +407,19 @@ def process_account(
 
             if signal.signal_type == SELL:
                 if signal.stock_id not in open_positions:
-                    counters["sell_signals_ignored"] += 1
+                    # The strategy exited before we entered: cancel any
+                    # not-yet-filled BUY for this stock instead of buying into
+                    # a position the strategy already wants out of.
+                    superseded = [
+                        o for o in pending if o.stock_id == signal.stock_id and o.side == BUY
+                    ]
+                    for buy_order in superseded:
+                        buy_order.status = "CANCELLED"
+                        buy_order.rejection_reason = "superseded_by_sell"
+                        pending.remove(buy_order)
+                        counters["rejected_orders"] += 1
+                    if not superseded:
+                        counters["sell_signals_ignored"] += 1
                     continue
                 if any(o.stock_id == signal.stock_id and o.side == SELL for o in pending):
                     continue  # a sell is already on its way

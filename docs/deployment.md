@@ -30,11 +30,13 @@ It is **not** hardened for untrusted multi-user internet exposure.
    > here until Web Shield HTTPS scanning is disabled. The prod compose is
    > written for a normal host. The native path (venv + `uvicorn --workers 2`
    > + `npm run build` served by any static server) works everywhere.
-5. **Scheduler**: exactly one backend instance must run the scheduler. With
-   `--workers 2`, APScheduler starts in each worker — for the daily jobs
-   this is safe (every job is idempotent and guarded by database constraints)
-   but wasteful; set `SCHEDULER_ENABLED=false` on extra instances if you
-   scale out, keeping one dedicated scheduler process.
+5. **Scheduler**: exactly one process must run it, and the prod compose uses
+   a single uvicorn worker for exactly that reason. If you scale out, add
+   workers/instances with `SCHEDULER_ENABLED=false` and keep one dedicated
+   scheduler process. Defense in depth: Telegram delivery uses row-level
+   locks (`FOR UPDATE SKIP LOCKED`), and paper/state writes are guarded by
+   unique constraints, so even accidental double-scheduling cannot double-send
+   an alert or corrupt account state.
 6. **Logs** are structured key-value lines without secrets; ship them
    wherever you like. Configuration is logged sanitized at startup.
 

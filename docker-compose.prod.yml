@@ -43,7 +43,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+    # Single worker on purpose: exactly one APScheduler instance. To scale,
+    # add workers here with SCHEDULER_ENABLED=false and run one dedicated
+    # scheduler container (same image) — see docs/deployment.md.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
     restart: unless-stopped
 
   frontend:

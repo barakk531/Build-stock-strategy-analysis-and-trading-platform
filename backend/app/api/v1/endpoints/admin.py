@@ -7,13 +7,14 @@ through the job layer instead.
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.timeutils import market_today
 from app.db.session import get_db
 from app.models.daily_price import DailyPrice
 from app.models.stock import Stock
@@ -210,7 +211,7 @@ def health_report(db: DbDep) -> dict:
     stuck_orders = db.scalar(
         select(func.count()).where(
             PaperOrder.status == "PENDING",
-            PaperOrder.signal_date < date.today() - timedelta(days=7),
+            PaperOrder.signal_date < market_today() - timedelta(days=7),
         )
     ) or 0
     active_accounts = db.scalar(
@@ -257,7 +258,7 @@ def data_health(db: DbDep) -> DataHealthOut:
     total_rows = db.scalar(select(func.count()).select_from(DailyPrice)) or 0
     latest = db.scalar(select(func.max(DailyPrice.trade_date)))
 
-    stale_cutoff = date.today() - timedelta(days=5)
+    stale_cutoff = market_today() - timedelta(days=5)
     per_stock_latest = (
         select(DailyPrice.stock_id, func.max(DailyPrice.trade_date).label("latest"))
         .group_by(DailyPrice.stock_id)

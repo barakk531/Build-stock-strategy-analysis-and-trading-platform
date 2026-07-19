@@ -7,12 +7,11 @@ basis for fair strategy comparison in Phase 8.
 
 from __future__ import annotations
 
-from datetime import date
-
 import pandas as pd
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.timeutils import market_today
 from app.models.daily_price import DailyPrice
 from app.models.paper import AccountEquitySnapshot, PaperAccount, PaperOrder, PaperPosition
 from app.models.strategy import Strategy as StrategyModel
@@ -25,7 +24,7 @@ from app.services.strategies.registry import get_strategy
 
 
 def create_account(db: Session, payload: AccountCreateIn) -> PaperAccount:
-    if payload.start_date > date.today():
+    if payload.start_date > market_today():
         raise ValueError("start_date cannot be in the future")
     if payload.strategy_id is None:
         strategy_row = ensure_default_strategy(db)

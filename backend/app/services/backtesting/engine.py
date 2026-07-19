@@ -34,6 +34,10 @@ SELL = "SELL"
 # Guardrail for the detailed skip table; the summary always has full counts.
 MAX_SKIP_ROWS = 20_000
 
+# Give up retrying an unfillable order after this many calendar days
+# (mirrors the paper processor's stale-order cancellation).
+STALE_ORDER_DAYS = 15
+
 # Skip reasons
 R_MAX_POSITIONS = "max_positions"
 R_INSUFFICIENT_CASH = "insufficient_cash"
@@ -41,6 +45,7 @@ R_ALREADY_HOLDING = "already_holding"
 R_SAME_DAY_CONFLICT = "same_day_conflict"
 R_NO_NEXT_OPEN = "no_next_open"
 R_NO_PRICE = "no_price_at_execution"
+R_SUPERSEDED_BY_SELL = "superseded_by_sell"
 R_SELL_NO_POSITION = "sell_no_position"  # summary-only (would dominate the table)
 
 
@@ -177,6 +182,22 @@ def run_simulation(
     executed_buys = 0
     executed_sells = 0
 
+    day_index = {d: i for i, d in enumerate(calendar)}
+
+    def retry_or_skip(order: OrderIntent, day: date) -> None:
+        """Missing open on the scheduled day: roll to the next calendar day
+        (matching the paper processor) instead of burning the signal —
+        transition mode would never re-emit it. Give up after the staleness
+        window, like paper's stale-order cancellation."""
+        if (day - order.signal_date).days > STALE_ORDER_DAYS:
+            record_skip(order, R_NO_PRICE, detail="no open within staleness window")
+            return
+        next_index = day_index[day] + 1
+        if next_index < len(calendar):
+            pending.setdefault(calendar[next_index], []).append(order)
+        else:
+            record_skip(order, R_NO_PRICE, detail="no open before end of data")
+
     for day in calendar:
         todays = pending.pop(day, [])
         sells = sorted(
@@ -188,11 +209,30 @@ def run_simulation(
         for order in sells:
             position = positions.get(order.symbol)
             if position is None:
-                record_skip(order, R_SELL_NO_POSITION)
+                # A SELL for an unheld stock supersedes a not-yet-filled BUY
+                # for the same symbol signaled no later than the SELL: the
+                # strategy wanted out before our entry filled (e.g. the BUY's
+                # open kept being unavailable and got retried). A BUY signaled
+                # *after* the SELL is a genuine re-entry and must survive.
+                cancelled = False
+                for queued in pending.values():
+                    superseded = [
+                        o
+                        for o in queued
+                        if o.symbol == order.symbol
+                        and o.side == BUY
+                        and o.signal_date <= order.signal_date
+                    ]
+                    for buy_order in superseded:
+                        queued.remove(buy_order)
+                        record_skip(buy_order, R_SUPERSEDED_BY_SELL)
+                        cancelled = True
+                if not cancelled:
+                    record_skip(order, R_SELL_NO_POSITION)
                 continue
             open_price = opens.at[day, order.symbol]
             if pd.isna(open_price):
-                record_skip(order, R_NO_PRICE)
+                retry_or_skip(order, day)
                 continue
             fill = float(open_price) * (1.0 - slip)
             gross = position.quantity * fill
@@ -235,7 +275,7 @@ def run_simulation(
                 continue
             open_price = opens.at[day, order.symbol]
             if pd.isna(open_price):
-                record_skip(order, R_NO_PRICE)
+                retry_or_skip(order, day)
                 continue
             fill = float(open_price) * (1.0 + slip)
             target = equity_mark * size_fraction

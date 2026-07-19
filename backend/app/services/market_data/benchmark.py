@@ -14,6 +14,7 @@ from datetime import date, timedelta
 import pandas as pd
 from sqlalchemy.orm import Session
 
+from app.core.timeutils import market_today
 from app.repositories import price_repository, stock_repository
 
 logger = logging.getLogger(__name__)
@@ -37,7 +38,7 @@ def get_series(
             db, symbol, company_name=KNOWN_NAMES.get(symbol.upper()), is_sp500=False
         )
         latest = price_repository.latest_trade_date(db, stock.id)
-        needed_through = min(end, date.today() - timedelta(days=1))
+        needed_through = min(end, market_today() - timedelta(days=1))
         if latest is None or latest < needed_through - timedelta(days=5):
             from app.services.market_data import sync as sync_service
 
@@ -50,5 +51,8 @@ def get_series(
             return None, f"benchmark {symbol}: no data in range"
         return pd.Series(values).sort_index(), None
     except Exception as exc:  # optional feature — never fail the caller
+        # A failed INSERT/COMMIT leaves the transaction aborted; without this
+        # rollback every later query on the shared session would fail too.
+        db.rollback()
         logger.warning("benchmark unavailable symbol=%s error=%s", symbol, exc)
         return None, f"benchmark {symbol} unavailable: {exc}"

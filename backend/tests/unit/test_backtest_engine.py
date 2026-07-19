@@ -131,6 +131,67 @@ def test_no_sell_without_position_and_no_pyramiding():
     assert len([t for t in result.trades if t.symbol == "AAA"]) == 1
 
 
+def test_missing_open_retries_next_day_then_fills():
+    # No open on day 2 (halted): the buy must roll to day 3 and fill there,
+    # not be discarded — transition mode would never re-emit the signal.
+    days = _days(3)
+    nan = float("nan")
+    panel = {"AAA": _frame(days, [100.0, nan, 120.0], [100.0, 110.0, 120.0])}
+    orders = [OrderIntent("AAA", "BUY", signal_date=days[0], execution_date=days[1])]
+    result = run_simulation(_config(), panel, orders)
+
+    assert len(result.trades) == 1
+    assert result.trades[0].entry_date == days[2]  # rolled one day forward
+    assert "no_price_at_execution" not in result.skip_summary  # retried, not skipped
+
+
+def test_missing_open_gives_up_after_staleness_window():
+    # An open that never returns is abandoned once past the staleness window,
+    # mirroring paper's stale-order cancellation, instead of rolling forever.
+    days = _days(20)
+    nan = float("nan")
+    panel = {"AAA": _frame(days, [nan] * 20, [100.0] * 20)}
+    orders = [OrderIntent("AAA", "BUY", signal_date=days[0], execution_date=days[1])]
+    result = run_simulation(_config(), panel, orders)
+
+    assert result.trades == []
+    assert result.skip_summary.get("no_price_at_execution") == 1
+    stale = [s for s in result.skips if s.detail and "staleness window" in s.detail]
+    assert len(stale) == 1
+
+
+def test_sell_supersedes_earlier_signaled_pending_buy():
+    # The strategy exited (SELL, signalled day 2) before our entry (BUY,
+    # signalled day 1) filled: the still-pending buy is cancelled, not filled.
+    days = _days(4)
+    panel = {"AAA": _frame(days, [100.0] * 4, [100.0] * 4)}
+    orders = [
+        OrderIntent("AAA", "BUY", signal_date=days[0], execution_date=days[3]),
+        OrderIntent("AAA", "SELL", signal_date=days[1], execution_date=days[2]),
+    ]
+    result = run_simulation(_config(), panel, orders)
+
+    assert result.trades == []
+    assert result.skip_summary.get("superseded_by_sell") == 1
+    assert "sell_no_position" not in result.skip_summary
+
+
+def test_sell_does_not_supersede_later_signaled_buy():
+    # A buy signalled *after* the sell is a genuine re-entry and must survive;
+    # the naked sell is counted (summary-only) but cancels nothing.
+    days = _days(4)
+    panel = {"AAA": _frame(days, [100.0] * 4, [100.0] * 4)}
+    orders = [
+        OrderIntent("AAA", "SELL", signal_date=days[0], execution_date=days[1]),
+        OrderIntent("AAA", "BUY", signal_date=days[1], execution_date=days[3]),
+    ]
+    result = run_simulation(_config(), panel, orders)
+
+    assert result.skip_summary.get("sell_no_position") == 1
+    assert "superseded_by_sell" not in result.skip_summary
+    assert len([t for t in result.trades if t.symbol == "AAA"]) == 1
+
+
 def test_sells_execute_before_buys_and_free_cash():
     days = _days(4)
     panel = {

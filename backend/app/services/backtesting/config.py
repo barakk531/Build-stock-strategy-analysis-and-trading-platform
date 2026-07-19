@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import re
 from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
+
+# Yahoo-style tickers: letters/digits with ., -, ^ (indices), = (futures).
+SYMBOL_RE = re.compile(r"^[A-Z0-9.\-^=]{1,20}$")
 
 
 class BacktestConfig(BaseModel):
@@ -50,8 +54,14 @@ class BacktestConfig(BaseModel):
             raise ValueError("min_market_cap must not exceed max_market_cap")
         if self.symbols is not None:
             self.symbols = [s.strip().upper() for s in self.symbols if s.strip()] or None
+            if self.symbols:
+                bad = [s for s in self.symbols if not SYMBOL_RE.match(s)]
+                if bad:
+                    raise ValueError(f"invalid symbols: {bad[:5]}")
         if self.benchmark_symbol is not None:
             self.benchmark_symbol = self.benchmark_symbol.strip().upper() or None
+            if self.benchmark_symbol and not SYMBOL_RE.match(self.benchmark_symbol):
+                raise ValueError(f"invalid benchmark symbol: {self.benchmark_symbol!r}")
         return self
 
     def settings_snapshot(self) -> dict:

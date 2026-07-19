@@ -17,6 +17,7 @@ from datetime import date, timedelta
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.core.timeutils import market_today
 from app.repositories import price_repository, stock_repository
 from app.services.market_data import downloader
 
@@ -48,7 +49,7 @@ def sync_prices(
     if not stocks:
         return {"synced": 0, "rows": 0, "failed": []}
 
-    today = date.today()
+    today = market_today()
     overlap = timedelta(days=settings.price_sync_overlap_days)
 
     # Split stocks into "backfill" (no data yet, or full requested) and
