@@ -34,10 +34,13 @@ def get_health() -> HealthResponse:
         logger.warning("health db_check=failed error=%s", exc.__class__.__name__)
         database = "unavailable"
 
+    from app.core.security import auth_required
+
     return HealthResponse(
         status="ok" if database == "ok" else "degraded",
         version=settings.app_version,
         environment=settings.environment,
         database=database,
+        auth_required=auth_required(),
         timestamp=datetime.now(UTC),
     )

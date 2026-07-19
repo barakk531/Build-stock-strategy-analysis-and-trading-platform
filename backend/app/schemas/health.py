@@ -9,4 +9,6 @@ class HealthResponse(BaseModel):
     version: str
     environment: str
     database: Literal["ok", "unavailable"]
+    # False = ADMIN_API_KEY not configured (development mode, unprotected).
+    auth_required: bool = False
     timestamp: datetime

@@ -4,10 +4,12 @@ from collections.abc import Iterator
 import pytest
 from fastapi.testclient import TestClient
 
-# Deterministic settings for tests: no scheduler, explicit environment.
-# Env vars outrank the .env file, so this wins regardless of local config.
+# Deterministic settings for tests: no scheduler, explicit environment, auth
+# disabled (individual tests opt in via monkeypatch). Env vars outrank the
+# .env file, so this wins regardless of local config.
 os.environ["SCHEDULER_ENABLED"] = "false"
 os.environ["ENVIRONMENT"] = "test"
+os.environ["ADMIN_API_KEY"] = ""  # empty overrides any .env value
 
 from app.core.config import get_settings  # noqa: E402
 

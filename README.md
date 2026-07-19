@@ -4,20 +4,20 @@ Full-stack S&P 500 technical-analysis platform: daily Yahoo Finance data,
 configurable SMA-trend + volume strategies, buy/sell signal detection,
 backtesting, multi-account paper trading, and Telegram alerts.
 
-**Status: Phase 8 (strategy competition) complete.** Working end to end:
-S&P 500 universe + 20 years of daily history (idempotent sync), SMA
-20/50/150 + volume indicators, transition-mode buy/sell signal detection,
-the scanner UI, per-stock charts with historical signal markers, Telegram
-alerts with duplicate-proof delivery, a full portfolio backtester (next-open
-fills, split-adjusted, benchmark-relative), multi-account paper trading
-(raw-price fills, split/dividend handling, complete order audit trail, daily
-equity snapshots) driven by scheduled jobs on the America/New_York market
-clock, and strategy competitions — risk-adjusted leaderboards (Sharpe and
-drawdown, never total return alone) with fairness checks, rebased
-multi-account equity/drawdown comparison, monthly return matrices, and
-one-click cloning of winning configurations. Remaining: Phase 9
-(auth/hardening) — see the phase map in
-[docs/architecture.md](docs/architecture.md).
+**Status: all 9 phases complete.** Working end to end: S&P 500 universe +
+20 years of daily history (idempotent sync), SMA 20/50/150 + volume
+indicators, transition-mode buy/sell signal detection, the scanner UI,
+per-stock charts with historical signal markers, Telegram alerts with
+duplicate-proof delivery, a full portfolio backtester (next-open fills,
+split-adjusted, benchmark-relative), multi-account paper trading (raw-price
+fills, split/dividend handling, complete order audit trail, daily equity
+snapshots) driven by scheduled jobs on the America/New_York market clock,
+strategy competitions (risk-adjusted leaderboards with fairness checks and
+configuration cloning), and Phase 9 hardening: API-key authentication on
+admin/trading endpoints, an admin dashboard (data health, scheduled jobs,
+manual pipeline triggers), sanitized configuration reporting, pinned
+dependencies, loopback-only Postgres, a production compose file, and a
+[deployment + backup runbook](docs/deployment.md).
 
 Key endpoints (see `/docs` for all):
 

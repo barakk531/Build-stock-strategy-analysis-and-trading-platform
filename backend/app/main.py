@@ -19,6 +19,9 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
+        from app.core.security import warn_if_disabled
+
+        warn_if_disabled()
         if settings.scheduler_enabled:
             scheduler.start()
         yield

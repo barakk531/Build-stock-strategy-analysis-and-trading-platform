@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     yahoo_max_retries: int = 3
     yahoo_backoff_seconds: float = 2.0
 
+    # Authentication (Phase 9). Empty = auth disabled (local development).
+    admin_api_key: str = ""
+
     # Telegram alerts (Phase 5)
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""

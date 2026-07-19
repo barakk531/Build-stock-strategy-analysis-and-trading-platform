@@ -156,6 +156,92 @@ def list_jobs() -> dict:
     }
 
 
+@router.get("/config")
+def get_config() -> dict:
+    """Sanitized runtime configuration for the settings screen. Secrets are
+    masked — the raw token or key never leaves the server (spec §20)."""
+    from app.core.config import get_settings
+    from app.core.security import auth_required
+
+    s = get_settings()
+
+    def mask(value: str) -> str | None:
+        if not value:
+            return None
+        return f"{value[:4]}…{value[-4:]}" if len(value) > 8 else "…"
+
+    return {
+        "environment": s.environment,
+        "version": s.app_version,
+        "market_timezone": s.market_timezone,
+        "scheduler_enabled": s.scheduler_enabled,
+        "auth_required": auth_required(),
+        "price_history_years": s.price_history_years,
+        "price_sync_overlap_days": s.price_sync_overlap_days,
+        "telegram": {
+            "enabled": s.telegram_alerts_enabled,
+            "bot_token": mask(s.telegram_bot_token),
+            "chat_id": mask(s.telegram_chat_id),
+            "alert_types": s.telegram_alert_types,
+            "min_market_cap": s.telegram_min_market_cap,
+        },
+        "frontend_base_url": s.frontend_base_url,
+    }
+
+
+@router.get("/health-report")
+def health_report(db: DbDep) -> dict:
+    """Extended operational health (spec §18): stale data, stuck work,
+    delivery failures — everything the admin dashboard shows."""
+    from app.models.daily_indicator import DailyIndicator
+    from app.models.paper import PaperAccount, PaperOrder
+    from app.models.signal import Signal
+    from app.models.telegram_alert import TelegramAlert
+
+    latest_price = db.scalar(select(func.max(DailyPrice.trade_date)))
+    latest_indicator = db.scalar(select(func.max(DailyIndicator.trade_date)))
+    latest_signal = db.scalar(select(func.max(Signal.trade_date)))
+
+    telegram_counts = dict(
+        db.execute(
+            select(TelegramAlert.status, func.count()).group_by(TelegramAlert.status)
+        ).all()
+    )
+    stuck_orders = db.scalar(
+        select(func.count()).where(
+            PaperOrder.status == "PENDING",
+            PaperOrder.signal_date < date.today() - timedelta(days=7),
+        )
+    ) or 0
+    active_accounts = db.scalar(
+        select(func.count()).where(PaperAccount.status == "ACTIVE")
+    ) or 0
+    # The unique constraint makes duplicates impossible; report the count so
+    # the spec §18 check is explicit, not assumed.
+    duplicate_prices = db.scalar(
+        select(func.count())
+        .select_from(
+            select(DailyPrice.stock_id)
+            .group_by(DailyPrice.stock_id, DailyPrice.trade_date)
+            .having(func.count() > 1)
+            .subquery()
+        )
+    ) or 0
+
+    return {
+        "latest_price_date": latest_price.isoformat() if latest_price else None,
+        "latest_indicator_date": latest_indicator.isoformat() if latest_indicator else None,
+        "latest_signal_date": latest_signal.isoformat() if latest_signal else None,
+        "indicators_behind_prices": bool(
+            latest_price and latest_indicator and latest_indicator < latest_price
+        ),
+        "duplicate_price_rows": duplicate_prices,
+        "telegram_alerts": telegram_counts,
+        "paper_orders_stuck": stuck_orders,
+        "active_paper_accounts": active_accounts,
+    }
+
+
 @router.get("/data-health", response_model=DataHealthOut)
 def data_health(db: DbDep) -> DataHealthOut:
     active = db.scalar(select(func.count()).select_from(Stock).where(Stock.is_active)) or 0
