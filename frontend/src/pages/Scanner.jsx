@@ -29,8 +29,11 @@ const SORTS = [
 ]
 
 function Th({ label, sortKey, params, onSort, className = '' }) {
-  const active = params.sort === sortKey
-  const arrow = active ? (params.order === 'desc' ? ' ↓' : ' ↑') : ''
+  // Label-only columns (★, Company, Sector, the SMAs, State) render without a
+  // `params` prop and are never the active sort — guard both reads so a
+  // missing `params` can't crash the whole table.
+  const active = sortKey && params?.sort === sortKey
+  const arrow = active ? (params?.order === 'desc' ? ' ↓' : ' ↑') : ''
   return (
     <th
       onClick={sortKey ? () => onSort(sortKey) : undefined}
