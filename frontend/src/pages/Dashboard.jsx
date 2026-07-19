@@ -121,6 +121,37 @@ export default function Dashboard() {
         })}
       </section>
 
+      {paper.data?.items?.length > 0 && (
+        <section className="rounded-lg border border-slate-800 bg-slate-900 p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium tracking-wide text-slate-400 uppercase">
+              Paper account leaderboard
+            </h2>
+            <Link to="/competitions" className="text-xs text-slate-500 hover:text-emerald-400">
+              Competitions →
+            </Link>
+          </div>
+          <div className="mt-2 divide-y divide-slate-800/60">
+            {[...paper.data.items]
+              .sort((a, b) => (b.total_return_pct ?? -Infinity) - (a.total_return_pct ?? -Infinity))
+              .slice(0, 5)
+              .map((a, i) => (
+                <Link
+                  key={a.id}
+                  to={`/paper-accounts/${a.id}`}
+                  className="flex items-center justify-between py-2 text-sm hover:bg-slate-800/40"
+                >
+                  <span className="text-slate-500">#{i + 1}</span>
+                  <span className="ml-3 flex-1 truncate font-medium text-slate-100">{a.name}</span>
+                  <span className={`tabular-nums ${a.total_return_pct > 0 ? 'text-emerald-400' : a.total_return_pct < 0 ? 'text-red-400' : 'text-slate-300'}`}>
+                    {a.total_return_pct == null ? '—' : `${a.total_return_pct > 0 ? '+' : ''}${a.total_return_pct.toFixed(2)}%`}
+                  </span>
+                </Link>
+              ))}
+          </div>
+        </section>
+      )}
+
       {pulse.data?.top?.length > 0 && (
         <section className="rounded-lg border border-slate-800 bg-slate-900 p-4">
           <h2 className="text-sm font-medium tracking-wide text-slate-400 uppercase">

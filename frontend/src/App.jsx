@@ -3,6 +3,8 @@ import Layout from './components/Layout.jsx'
 import BacktestDetail from './pages/BacktestDetail.jsx'
 import BacktestNew from './pages/BacktestNew.jsx'
 import Backtests from './pages/Backtests.jsx'
+import CompetitionDetail from './pages/CompetitionDetail.jsx'
+import Competitions from './pages/Competitions.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import PaperAccountDetail from './pages/PaperAccountDetail.jsx'
 import PaperAccountNew from './pages/PaperAccountNew.jsx'
@@ -26,10 +28,8 @@ export default function App() {
         <Route path="/paper-accounts" element={<PaperAccounts />} />
         <Route path="/paper-accounts/new" element={<PaperAccountNew />} />
         <Route path="/paper-accounts/:id" element={<PaperAccountDetail />} />
-        <Route
-          path="/competitions"
-          element={<Placeholder title="Strategy Competition" phase={8} />}
-        />
+        <Route path="/competitions" element={<Competitions />} />
+        <Route path="/competitions/:id" element={<CompetitionDetail />} />
         <Route path="/settings" element={<Placeholder title="Settings" phase={9} />} />
         <Route path="/admin/data" element={<Placeholder title="Data Administration" phase={2} />} />
         <Route path="*" element={<Navigate to="/" replace />} />

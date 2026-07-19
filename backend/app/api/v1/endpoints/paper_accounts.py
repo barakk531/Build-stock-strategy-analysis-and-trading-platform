@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.paper import PaperAccount, PaperOrder, PaperPosition
+from app.schemas.competition import CloneAccountIn
 from app.schemas.paper import (
     AccountCreateIn,
     AccountDetailOut,
@@ -114,6 +115,31 @@ def delete_account(account_id: int, db: DbDep) -> Response:
     db.delete(account)  # positions/orders/snapshots cascade
     db.commit()
     return Response(status_code=204)
+
+
+@router.post("/{account_id}/clone", response_model=AccountOut, status_code=201)
+def clone_account(
+    account_id: int,
+    payload: CloneAccountIn,
+    background: BackgroundTasks,
+    db: DbDep,
+    sync: Annotated[bool, Query(description="Run the initial catch-up in-request")] = False,
+) -> AccountOut:
+    """Clone this account's full configuration (strategy, parameters,
+    settings, capital, start date) into a fresh account — spec §14's
+    'clone a winning configuration into a new experiment'."""
+    from app.services.competition import service as competition_service
+
+    source = _get_or_404(db, account_id)
+    clone = competition_service.clone_account(
+        db, source, name=payload.name, competition_id=payload.competition_id
+    )
+    if sync:
+        processor.ensure_signals(db, clone)
+        processor.process_account(db, clone)
+    else:
+        background.add_task(_process_in_background, clone.id)
+    return _enrich(db, clone)
 
 
 @router.post("/{account_id}/pause", response_model=AccountOut)

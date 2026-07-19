@@ -4,17 +4,20 @@ Full-stack S&P 500 technical-analysis platform: daily Yahoo Finance data,
 configurable SMA-trend + volume strategies, buy/sell signal detection,
 backtesting, multi-account paper trading, and Telegram alerts.
 
-**Status: Phase 7 (paper trading) complete.** Working end to end: S&P 500
-universe + 20 years of daily history (idempotent sync), SMA 20/50/150 +
-volume indicators, transition-mode buy/sell signal detection, the scanner UI,
-per-stock charts with historical signal markers, Telegram alerts with
-duplicate-proof delivery, a full portfolio backtester (next-open fills,
-split-adjusted, benchmark-relative), and multi-account paper trading —
-independent simulated accounts that trade their strategy's signals
-automatically (raw-price fills, split/dividend handling, complete order audit
-trail, daily equity snapshots) driven by scheduled jobs on the
-America/New_York market clock. Strategy competition arrives in Phase 8 — see
-the phase map in [docs/architecture.md](docs/architecture.md).
+**Status: Phase 8 (strategy competition) complete.** Working end to end:
+S&P 500 universe + 20 years of daily history (idempotent sync), SMA
+20/50/150 + volume indicators, transition-mode buy/sell signal detection,
+the scanner UI, per-stock charts with historical signal markers, Telegram
+alerts with duplicate-proof delivery, a full portfolio backtester (next-open
+fills, split-adjusted, benchmark-relative), multi-account paper trading
+(raw-price fills, split/dividend handling, complete order audit trail, daily
+equity snapshots) driven by scheduled jobs on the America/New_York market
+clock, and strategy competitions — risk-adjusted leaderboards (Sharpe and
+drawdown, never total return alone) with fairness checks, rebased
+multi-account equity/drawdown comparison, monthly return matrices, and
+one-click cloning of winning configurations. Remaining: Phase 9
+(auth/hardening) — see the phase map in
+[docs/architecture.md](docs/architecture.md).
 
 Key endpoints (see `/docs` for all):
 
@@ -24,6 +27,9 @@ POST /api/v1/backtests                # launch a backtest (background)
 GET  /api/v1/backtests/{id}           # status + results (metrics, curves)
 POST /api/v1/paper-accounts           # create an auto-trading paper account
 GET  /api/v1/paper-accounts/{id}/performance   # full account statistics
+POST /api/v1/paper-accounts/{id}/clone         # clone a winning configuration
+POST /api/v1/competitions             # group accounts into a competition
+GET  /api/v1/competitions/{id}/leaderboard     # risk-adjusted comparison
 POST /api/v1/admin/paper/process      # advance all accounts manually
 GET  /api/v1/admin/jobs               # scheduled jobs + next run times
 POST /api/v1/admin/universe/sync      # refresh S&P 500 membership

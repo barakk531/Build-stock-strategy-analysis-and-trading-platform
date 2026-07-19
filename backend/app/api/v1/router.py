@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     admin,
     backtests,
+    competitions,
     health,
     paper_accounts,
     scanner,
@@ -19,4 +20,5 @@ api_router.include_router(signals.router, tags=["signals"])
 api_router.include_router(strategies.router, tags=["strategies"])
 api_router.include_router(backtests.router, tags=["backtests"])
 api_router.include_router(paper_accounts.router, tags=["paper-accounts"])
+api_router.include_router(competitions.router, tags=["competitions"])
 api_router.include_router(admin.router, tags=["admin"])

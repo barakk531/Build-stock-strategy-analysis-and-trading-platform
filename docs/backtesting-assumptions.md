@@ -66,6 +66,23 @@ not back-adjusted ones.
 - Performance statistics reuse the backtesting metrics module, so accounts
   and backtests are directly comparable (Phase 8's fair-comparison basis).
 
+## Strategy competitions (Phase 8, implemented)
+
+- A competition is a live view over its member accounts — nothing is
+  precomputed, so the leaderboard is always current.
+- Metrics and curves are computed over the members' **common window**
+  [max(first snapshot), min(last snapshot)], and equity/drawdown curves are
+  rebased to 100 at the window start so different capital bases compare
+  visually.
+- Fair-comparison checks (spec §14) — same start date, initial capital,
+  universe filters, commission, slippage, benchmark, and data availability —
+  are surfaced as explicit pass/fail flags, never silently assumed.
+- Default ranking is risk-adjusted: Sharpe, then max drawdown, then total
+  return — never total return alone.
+- Cloning copies a configuration (strategy, parameters, settings, capital,
+  start date) into a fresh account with no history, optionally joining the
+  competition immediately.
+
 ## Look-ahead bias prevention (mandatory)
 
 - A day-`t` signal is computed only from information available by day `t`'s

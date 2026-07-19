@@ -5,6 +5,7 @@ env.py relies on that. Add new model modules to the imports below.
 """
 
 from app.models.backtest import BacktestRun, BacktestSkip, BacktestTrade
+from app.models.competition import Competition, CompetitionAccount
 from app.models.daily_indicator import DailyIndicator
 from app.models.daily_price import DailyPrice
 from app.models.paper import AccountEquitySnapshot, PaperAccount, PaperOrder, PaperPosition
@@ -18,6 +19,8 @@ __all__ = [
     "BacktestRun",
     "BacktestSkip",
     "BacktestTrade",
+    "Competition",
+    "CompetitionAccount",
     "DailyIndicator",
     "DailyPrice",
     "PaperAccount",
