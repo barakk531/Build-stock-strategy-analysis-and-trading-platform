@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
+import { listPaperAccounts } from '../api/paper.js'
 import { getScanner } from '../api/scanner.js'
 import StatusBadge from '../components/StatusBadge.jsx'
 import { useHealth } from '../hooks/useHealth.js'
@@ -22,12 +23,18 @@ function useMarketPulse() {
 export default function Dashboard() {
   const { data, isPending, isError, error, refetch, isFetching } = useHealth()
   const pulse = useMarketPulse()
+  const paper = useQuery({
+    queryKey: ['paper-accounts'],
+    queryFn: listPaperAccounts,
+    refetchInterval: 120_000,
+  })
+  const activeAccounts = paper.data?.items?.filter((a) => a.status === 'ACTIVE').length
 
   const tiles = [
     { label: 'Tracked stocks', value: pulse.data?.tracked, to: '/scanner' },
     { label: 'In buy state now', value: pulse.data?.buys, to: '/scanner?buy_state=1', cls: 'text-emerald-400' },
     { label: 'In sell state now', value: pulse.data?.sells, to: '/scanner?sell_state=1', cls: 'text-red-400' },
-    { label: 'Active paper accounts', value: null, phase: 7 },
+    { label: 'Active paper accounts', value: activeAccounts, to: '/paper-accounts' },
   ]
 
   return (

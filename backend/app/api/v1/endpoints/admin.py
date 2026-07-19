@@ -135,6 +135,27 @@ def telegram_process(
     return telegram_alerts.process_pending(db, limit=limit)
 
 
+@router.post("/paper/process")
+def paper_process_all(db: DbDep) -> dict:
+    """Advance every ACTIVE paper account through the latest stored trading
+    day (the daily job's last step, manually triggered)."""
+    from app.services.paper_trading import processor
+
+    return processor.process_all(db)
+
+
+@router.get("/jobs")
+def list_jobs() -> dict:
+    """Scheduled jobs and their next run times (spec §16)."""
+    from app.services.scheduling.scheduler import SchedulerService
+
+    service = SchedulerService.instance
+    return {
+        "scheduler_running": service is not None,
+        "jobs": service.jobs() if service is not None else [],
+    }
+
+
 @router.get("/data-health", response_model=DataHealthOut)
 def data_health(db: DbDep) -> DataHealthOut:
     active = db.scalar(select(func.count()).select_from(Stock).where(Stock.is_active)) or 0

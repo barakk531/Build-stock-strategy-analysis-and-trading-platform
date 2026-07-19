@@ -45,6 +45,16 @@ export function formatPercent(value, digits = 2) {
   return `${sign}${number.toFixed(digits)}%`
 }
 
+export function formatMoney(value) {
+  if (value == null || Number.isNaN(Number(value))) return '—'
+  return `$${Number(value).toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+}
+
+export function formatRatio(value) {
+  if (value == null || Number.isNaN(Number(value))) return '—'
+  return Number(value).toFixed(2)
+}
+
 export function changeClass(value) {
   if (value == null) return 'text-slate-400'
   if (value > 0) return 'text-emerald-400'

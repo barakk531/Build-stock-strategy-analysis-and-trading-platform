@@ -106,8 +106,13 @@ def scan_all(
     *,
     symbols: list[str] | None = None,
     strategy_id: int | None = None,
+    parameters: dict | None = None,
 ) -> dict:
-    """Detect and persist signals for active stocks. Idempotent."""
+    """Detect and persist signals for active stocks. Idempotent.
+
+    `parameters` overrides the strategy row's stored parameters — used by
+    paper accounts so each account's configuration gets its own signal set
+    (deduplicated by the parameter hash in the unique constraint)."""
     if strategy_id is not None:
         strategy_row = db.get(StrategyModel, strategy_id)
         if strategy_row is None:
@@ -127,7 +132,7 @@ def scan_all(
     failed: list[dict] = []
     for stock in stocks:
         try:
-            result = scan_stock(db, stock, strategy_row)
+            result = scan_stock(db, stock, strategy_row, parameters=parameters)
         except Exception as exc:
             logger.exception("signal scan failed symbol=%s", stock.symbol)
             failed.append({"symbol": stock.symbol, "reason": str(exc)})

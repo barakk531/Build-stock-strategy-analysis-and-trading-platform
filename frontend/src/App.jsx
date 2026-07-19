@@ -4,6 +4,9 @@ import BacktestDetail from './pages/BacktestDetail.jsx'
 import BacktestNew from './pages/BacktestNew.jsx'
 import Backtests from './pages/Backtests.jsx'
 import Dashboard from './pages/Dashboard.jsx'
+import PaperAccountDetail from './pages/PaperAccountDetail.jsx'
+import PaperAccountNew from './pages/PaperAccountNew.jsx'
+import PaperAccounts from './pages/PaperAccounts.jsx'
 import Placeholder from './pages/Placeholder.jsx'
 import Scanner from './pages/Scanner.jsx'
 import StockDetail from './pages/StockDetail.jsx'
@@ -20,7 +23,9 @@ export default function App() {
         <Route path="/backtests" element={<Backtests />} />
         <Route path="/backtests/new" element={<BacktestNew />} />
         <Route path="/backtests/:id" element={<BacktestDetail />} />
-        <Route path="/paper-accounts" element={<Placeholder title="Paper Accounts" phase={7} />} />
+        <Route path="/paper-accounts" element={<PaperAccounts />} />
+        <Route path="/paper-accounts/new" element={<PaperAccountNew />} />
+        <Route path="/paper-accounts/:id" element={<PaperAccountDetail />} />
         <Route
           path="/competitions"
           element={<Placeholder title="Strategy Competition" phase={8} />}

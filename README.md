@@ -4,15 +4,17 @@ Full-stack S&P 500 technical-analysis platform: daily Yahoo Finance data,
 configurable SMA-trend + volume strategies, buy/sell signal detection,
 backtesting, multi-account paper trading, and Telegram alerts.
 
-**Status: Phase 6 (backtesting) complete.** Working end to end: S&P 500
+**Status: Phase 7 (paper trading) complete.** Working end to end: S&P 500
 universe + 20 years of daily history (idempotent sync), SMA 20/50/150 +
 volume indicators, transition-mode buy/sell signal detection, the scanner UI,
 per-stock charts with historical signal markers, Telegram alerts with
-duplicate-proof delivery, and a full portfolio backtester (next-open fills,
-split-adjusted, benchmark-relative, with Sharpe/Sortino/drawdown/monthly
-returns and a complete trade + skipped-signal audit trail). Paper trading
-arrives in Phase 7 — see the phase map in
-[docs/architecture.md](docs/architecture.md).
+duplicate-proof delivery, a full portfolio backtester (next-open fills,
+split-adjusted, benchmark-relative), and multi-account paper trading —
+independent simulated accounts that trade their strategy's signals
+automatically (raw-price fills, split/dividend handling, complete order audit
+trail, daily equity snapshots) driven by scheduled jobs on the
+America/New_York market clock. Strategy competition arrives in Phase 8 — see
+the phase map in [docs/architecture.md](docs/architecture.md).
 
 Key endpoints (see `/docs` for all):
 
@@ -20,12 +22,14 @@ Key endpoints (see `/docs` for all):
 GET  /api/v1/scanner                  # filter/sort all stocks + buy/sell states
 POST /api/v1/backtests                # launch a backtest (background)
 GET  /api/v1/backtests/{id}           # status + results (metrics, curves)
-GET  /api/v1/backtests/{id}/trades    # complete trade list (paginated)
+POST /api/v1/paper-accounts           # create an auto-trading paper account
+GET  /api/v1/paper-accounts/{id}/performance   # full account statistics
+POST /api/v1/admin/paper/process      # advance all accounts manually
+GET  /api/v1/admin/jobs               # scheduled jobs + next run times
 POST /api/v1/admin/universe/sync      # refresh S&P 500 membership
 POST /api/v1/admin/prices/sync        # backfill/incremental daily prices
 POST /api/v1/admin/stocks/add         # track an extra/benchmark symbol (^GSPC)
 GET  /api/v1/admin/data-health        # coverage, staleness, gaps
-GET  /api/v1/stocks?search=apple      # list/search stocks
 GET  /api/v1/stocks/AAPL/prices       # daily OHLCV series
 ```
 

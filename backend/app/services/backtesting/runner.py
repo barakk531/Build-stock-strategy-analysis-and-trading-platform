@@ -31,18 +31,12 @@ from app.services.backtesting.engine import (
     run_simulation,
 )
 from app.services.indicators import calculator as calc
+from app.services.market_data import benchmark as benchmark_service
 from app.services.signals.detector import ensure_default_strategy
 from app.services.strategies.base import parameter_hash
 from app.services.strategies.registry import get_strategy
 
 logger = logging.getLogger(__name__)
-
-_BENCHMARK_NAMES = {
-    "^GSPC": "S&P 500 Index",
-    "^NDX": "Nasdaq 100 Index",
-    "^DJI": "Dow Jones Industrial Average",
-    "SPY": "SPDR S&P 500 ETF",
-}
 
 
 def _warmup_start(params, start: date) -> date:
@@ -150,42 +144,6 @@ def _resolve_universe(db: Session, config: BacktestConfig) -> list:
     return stocks
 
 
-def _benchmark_series(db: Session, config: BacktestConfig) -> tuple[pd.Series | None, str | None]:
-    """Adjusted-close series for the benchmark, auto-provisioning the symbol.
-
-    Missing data is fetched once via the normal sync path (the benchmark row is
-    a non-S&P stock, so universe syncs never deactivate it). Any failure —
-    network down, unknown symbol — degrades to no benchmark, never a failed run.
-    """
-    symbol = config.benchmark_symbol
-    if not symbol:
-        return None, None
-    try:
-        stock = stock_repository.ensure_stock(
-            db, symbol, company_name=_BENCHMARK_NAMES.get(symbol), is_sp500=False
-        )
-        latest = price_repository.latest_trade_date(db, stock.id)
-        needed_through = min(config.end_date, date.today() - timedelta(days=1))
-        if latest is None or latest < needed_through - timedelta(days=5):
-            from app.services.market_data import sync as sync_service
-
-            sync_service.sync_prices(db, symbols=[stock.symbol], full=latest is None)
-        prices = price_repository.get_prices(
-            db, stock.id, start=config.start_date, end=config.end_date
-        )
-        values = {
-            p.trade_date: float(p.adjusted_close)
-            for p in prices
-            if p.adjusted_close is not None
-        }
-        if len(values) < 2:
-            return None, f"benchmark {symbol}: no data in range"
-        return pd.Series(values).sort_index(), None
-    except Exception as exc:  # benchmark is optional — never sink the run
-        logger.warning("benchmark unavailable symbol=%s error=%s", symbol, exc)
-        return None, f"benchmark {symbol} unavailable: {exc}"
-
-
 def _execute(db: Session, run: BacktestRun) -> dict:
     config = _config_from_run(run)
     strategy_row = db.get(StrategyModel, run.strategy_id)
@@ -239,7 +197,9 @@ def _execute(db: Session, run: BacktestRun) -> dict:
 
     result = run_simulation(config, panel, orders)
 
-    benchmark, benchmark_note = _benchmark_series(db, config)
+    benchmark, benchmark_note = benchmark_service.get_series(
+        db, config.benchmark_symbol, config.start_date, config.end_date
+    )
 
     equity = result.equity["equity"]
     trade_dicts = [

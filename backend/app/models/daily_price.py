@@ -25,6 +25,9 @@ class DailyPrice(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("stock_id", "trade_date", name="uq_daily_prices_stock_date"),
         Index("ix_daily_prices_stock_trade_date", "stock_id", "trade_date"),
+        # Market-calendar queries (distinct dates in a range) need a bare
+        # date index — the composite above leads with stock_id.
+        Index("ix_daily_prices_trade_date", "trade_date"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

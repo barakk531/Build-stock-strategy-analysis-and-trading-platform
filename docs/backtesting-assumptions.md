@@ -36,6 +36,36 @@
   bit-identical results (tests enforce this, plus truncation invariance:
   shortening the window never changes earlier entries).
 
+## Paper-trading execution (Phase 7, implemented)
+
+Paper accounts are LIVE simulations that advance one real market day at a
+time (with automatic catch-up from any past start date), so they differ from
+backtests in one deliberate way: they trade **raw** prices like a real broker,
+not back-adjusted ones.
+
+- Fills: the first trading day after the signal with data for the stock, at
+  that day's raw open, slippage against the trade, flat commission per fill.
+  Sells before buys; ranked buys (volume ratio desc, slope desc, symbol); no
+  pyramiding/shorts/leverage; sizing from the previous close's equity capped
+  by cash. Same ordering rules as the backtester.
+- **Splits** multiply the position quantity and divide the average entry
+  price on the ex-date (cost basis unchanged) — without this, raw-price
+  accounts would show huge false losses on every split. Odd lots keep
+  fractional remainders (real brokers pay cash in lieu).
+- **Dividends** credit cash on the ex-date (quantity × dividend per share).
+  Pay-date timing is ignored — a small, disclosed simplification.
+- Each account freezes its strategy parameter snapshot (and hash) at
+  creation; its signal set is detected independently, so accounts with
+  different parameters trade different signals. Accounts never share state.
+- Orders are the audit trail: PENDING → EXECUTED / REJECTED (reason kept:
+  max_positions, insufficient_cash, already_holding, same_day_conflict,
+  filtered_market_cap) / CANCELLED (no data for 15+ days). At most one order
+  per signal per account, enforced by the database.
+- Daily equity snapshots (cash, positions value, total, daily/cumulative
+  return, drawdown) are unique per day — reprocessing is a no-op.
+- Performance statistics reuse the backtesting metrics module, so accounts
+  and backtests are directly comparable (Phase 8's fair-comparison basis).
+
 ## Look-ahead bias prevention (mandatory)
 
 - A day-`t` signal is computed only from information available by day `t`'s
