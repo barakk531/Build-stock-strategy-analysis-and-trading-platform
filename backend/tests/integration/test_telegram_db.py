@@ -87,13 +87,16 @@ def test_process_success_and_failure_paths(db, signal_row, alerts_enabled, monke
     from app.services.telegram import alerts, client
 
     alerts.queue_new_alerts(db)
+    # Scope every process call to OUR signal — the shared dev database may hold
+    # real pending alerts that a mocked transport must never touch.
+    scope = {"signal_ids": [signal_row.id]}
 
     # Failure path: transport error -> attempts increment, stays PENDING.
     def boom(text, **kwargs):
         raise client.TelegramError("simulated outage")
 
     monkeypatch.setattr(client, "send_message", boom)
-    result = alerts.process_pending(db)
+    result = alerts.process_pending(db, **scope)
     alert = db.scalar(
         db.query(TelegramAlert).filter(TelegramAlert.signal_id == signal_row.id).statement
     )
@@ -103,7 +106,7 @@ def test_process_success_and_failure_paths(db, signal_row, alerts_enabled, monke
 
     # Success path: next run sends and records the message id.
     monkeypatch.setattr(client, "send_message", lambda text, **kw: "42")
-    result = alerts.process_pending(db)
+    result = alerts.process_pending(db, **scope)
     db.refresh(alert)
     assert result["sent"] >= 1
     assert alert.status == "SENT"
@@ -112,7 +115,7 @@ def test_process_success_and_failure_paths(db, signal_row, alerts_enabled, monke
 
     # Rerun: nothing pending for this signal, no double send.
     monkeypatch.setattr(client, "send_message", lambda text, **kw: "43")
-    alerts.process_pending(db)
+    alerts.process_pending(db, **scope)
     db.refresh(alert)
     assert alert.telegram_message_id == "42"  # unchanged — sent exactly once
 
@@ -127,7 +130,7 @@ def test_failure_lands_in_failed_after_max_attempts(db, signal_row, alerts_enabl
         lambda text, **kw: (_ for _ in ()).throw(client.TelegramError("down")),
     )
     for _ in range(3):
-        alerts.process_pending(db)
+        alerts.process_pending(db, signal_ids=[signal_row.id])
     alert = db.scalar(
         db.query(TelegramAlert).filter(TelegramAlert.signal_id == signal_row.id).statement
     )

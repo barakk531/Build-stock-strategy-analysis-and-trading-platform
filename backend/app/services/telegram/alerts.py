@@ -133,21 +133,22 @@ def queue_new_alerts(db: Session) -> int:
     return queued
 
 
-def process_pending(db: Session, *, limit: int = 50) -> dict:
+def process_pending(
+    db: Session, *, limit: int = 50, signal_ids: list[int] | None = None
+) -> dict:
     """Send queued alerts. Each failure records the error and counts an
-    attempt; alerts move to FAILED after _MAX_ATTEMPTS. Safe to rerun."""
+    attempt; alerts move to FAILED after _MAX_ATTEMPTS. Safe to rerun.
+
+    `signal_ids` scopes the run to specific signals — used by tests so they
+    never touch real queued alerts, and by targeted admin resends."""
     settings = get_settings()
     if not settings.telegram_alerts_enabled:
         return {"sent": 0, "failed": 0, "skipped": "alerts disabled"}
 
-    pending = list(
-        db.scalars(
-            select(TelegramAlert)
-            .where(TelegramAlert.status == PENDING)
-            .order_by(TelegramAlert.id)
-            .limit(limit)
-        )
-    )
+    query = select(TelegramAlert).where(TelegramAlert.status == PENDING)
+    if signal_ids is not None:
+        query = query.where(TelegramAlert.signal_id.in_(signal_ids))
+    pending = list(db.scalars(query.order_by(TelegramAlert.id).limit(limit)))
     sent = 0
     failed = 0
     for alert in pending:

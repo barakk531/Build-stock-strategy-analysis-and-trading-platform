@@ -86,6 +86,34 @@ def test_frame_to_rows_missing_volume_becomes_none():
     assert rows[0]["volume"] is None
 
 
+def test_download_history_flattens_single_symbol_multiindex(monkeypatch):
+    """group_by='ticker' nests columns under the symbol even for ONE ticker;
+    the single-symbol path must flatten or every row fails cleaning (this
+    broke the ^GSPC benchmark backfill)."""
+    import sys
+    import types
+
+    fields = ["Open", "High", "Low", "Close", "Adj Close", "Volume", "Dividends", "Stock Splits"]
+    data = pd.DataFrame(
+        [
+            [7500.0, 7510.0, 7490.0, 7505.0, 7505.0, 1e9, 0.0, 0.0],
+            [7440.0, 7450.0, 7430.0, 7448.0, 7448.0, 1e9, 0.0, 0.0],
+        ],
+        index=pd.to_datetime(["2026-07-16", "2026-07-17"]),
+        columns=pd.MultiIndex.from_product([["^GSPC"], fields]),
+    )
+    monkeypatch.setitem(
+        sys.modules, "yfinance", types.SimpleNamespace(download=lambda *a, **k: data)
+    )
+    monkeypatch.setattr(downloader.certs, "trust_windows_roots", lambda: None)
+
+    frames = downloader.download_history(["^GSPC"])
+    rows = downloader.frame_to_rows(frames["^GSPC"])
+    assert len(rows) == 2
+    assert rows[0]["close"] == 7505.0
+    assert rows[1]["adjusted_close"] == 7448.0
+
+
 def test_clean_number_handles_inf_and_nan():
     assert downloader._clean_number(float("inf")) is None
     assert downloader._clean_number(float("nan")) is None

@@ -15,6 +15,38 @@ def get_by_symbol(db: Session, symbol: str) -> Stock | None:
     return db.scalar(select(Stock).where(Stock.symbol == symbol.upper()))
 
 
+def ensure_stock(
+    db: Session,
+    symbol: str,
+    *,
+    company_name: str | None = None,
+    is_sp500: bool = False,
+) -> Stock:
+    """Get-or-create a manually tracked symbol (admin additions, benchmarks).
+
+    Non-S&P rows (is_sp500=False) stay active through universe syncs and are
+    picked up by the normal price sync, but are excluded from the scanner and
+    signal scans when the symbol is an index (leading '^')."""
+    symbol = symbol.strip().upper()
+    existing = get_by_symbol(db, symbol)
+    if existing is not None:
+        if not existing.is_active:
+            existing.is_active = True
+            db.commit()
+        return existing
+    stock = Stock(
+        symbol=symbol,
+        yahoo_symbol=symbol.replace(".", "-"),
+        company_name=company_name or symbol,
+        is_sp500=is_sp500,
+        is_active=True,
+    )
+    db.add(stock)
+    db.commit()
+    db.refresh(stock)
+    return stock
+
+
 def list_stocks(
     db: Session,
     *,
@@ -23,8 +55,9 @@ def list_stocks(
     limit: int = 100,
     offset: int = 0,
 ) -> tuple[list[Stock], int]:
-    """Return (page, total) of stocks, optionally filtered."""
-    query = select(Stock)
+    """Return (page, total) of stocks, optionally filtered. Benchmark index
+    rows (leading '^') are infrastructure, never listed."""
+    query = select(Stock).where(Stock.symbol.notlike("^%"))
     if active_only:
         query = query.where(Stock.is_active.is_(True))
     if search:
@@ -82,9 +115,15 @@ def upsert_constituents(
     deactivated = 0
     if deactivate_missing:
         current_symbols = [row["symbol"] for row in rows]
+        # Only S&P rows are in scope: manually added stocks and benchmark
+        # indices (is_sp500=False) are not constituents and must survive syncs.
         deactivated = (
             db.query(Stock)
-            .filter(Stock.is_active.is_(True), Stock.symbol.notin_(current_symbols))
+            .filter(
+                Stock.is_active.is_(True),
+                Stock.is_sp500.is_(True),
+                Stock.symbol.notin_(current_symbols),
+            )
             .update({"is_active": False, "updated_at": now}, synchronize_session=False)
         )
     db.commit()

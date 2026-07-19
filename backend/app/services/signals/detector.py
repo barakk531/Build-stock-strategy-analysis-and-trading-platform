@@ -115,7 +115,8 @@ def scan_all(
     else:
         strategy_row = ensure_default_strategy(db)
 
-    stocks = stock_repository.list_active_for_sync(db)
+    # Benchmark indices (leading '^') are price-synced but never signal-scanned.
+    stocks = [s for s in stock_repository.list_active_for_sync(db) if not s.symbol.startswith("^")]
     if symbols:
         wanted = {s.upper() for s in symbols}
         stocks = [s for s in stocks if s.symbol in wanted]

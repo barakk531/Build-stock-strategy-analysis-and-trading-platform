@@ -98,7 +98,9 @@ def build_snapshot(db: Session) -> list[dict[str, Any]]:
     latest_signal = {row.stock_id: row for row in signal_rows}
 
     stocks = db.scalars(
-        select(Stock).where(Stock.is_active.is_(True)).order_by(Stock.symbol)
+        select(Stock)
+        .where(Stock.is_active.is_(True), Stock.symbol.notlike("^%"))
+        .order_by(Stock.symbol)
     ).all()
 
     snapshot: list[dict[str, Any]] = []

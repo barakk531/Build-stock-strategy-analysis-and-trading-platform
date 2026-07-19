@@ -83,6 +83,32 @@ def scan_signals(
     return SignalScanOut(**result)
 
 
+@router.post("/stocks/add")
+def add_stock(
+    db: DbDep,
+    symbol: Annotated[str, Query(min_length=1, max_length=20)],
+    is_sp500: Annotated[bool, Query(description="Treat as an index constituent")] = False,
+    backfill: Annotated[bool, Query(description="Download full price history now")] = True,
+) -> dict:
+    """Manually track a symbol (spec §3.7) — e.g. a benchmark index like ^GSPC.
+
+    Non-S&P rows survive universe syncs and join the daily price sync; index
+    symbols (leading '^') never appear in the scanner or signal scans."""
+    from app.repositories import stock_repository
+
+    stock = stock_repository.ensure_stock(db, symbol, is_sp500=is_sp500)
+    synced = None
+    if backfill:
+        synced = sync_service.sync_prices(db, symbols=[stock.symbol], full=False)
+    return {
+        "symbol": stock.symbol,
+        "id": stock.id,
+        "is_active": stock.is_active,
+        "is_sp500": stock.is_sp500,
+        "sync": synced,
+    }
+
+
 @router.post("/telegram/test")
 def telegram_test() -> dict:
     """Send a test message to the configured chat."""

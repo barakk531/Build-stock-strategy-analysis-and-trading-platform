@@ -4,17 +4,26 @@ Full-stack S&P 500 technical-analysis platform: daily Yahoo Finance data,
 configurable SMA-trend + volume strategies, buy/sell signal detection,
 backtesting, multi-account paper trading, and Telegram alerts.
 
-**Status: Phase 2 (market data).** The S&P 500 universe syncs from its public
-constituent list, and 20 years of daily Yahoo Finance history loads
-incrementally and idempotently. Indicators and signals arrive in Phase 3 — see
-the phase map in [docs/architecture.md](docs/architecture.md).
+**Status: Phase 6 (backtesting) complete.** Working end to end: S&P 500
+universe + 20 years of daily history (idempotent sync), SMA 20/50/150 +
+volume indicators, transition-mode buy/sell signal detection, the scanner UI,
+per-stock charts with historical signal markers, Telegram alerts with
+duplicate-proof delivery, and a full portfolio backtester (next-open fills,
+split-adjusted, benchmark-relative, with Sharpe/Sortino/drawdown/monthly
+returns and a complete trade + skipped-signal audit trail). Paper trading
+arrives in Phase 7 — see the phase map in
+[docs/architecture.md](docs/architecture.md).
 
-Key Phase 2 endpoints (see `/docs` for all):
+Key endpoints (see `/docs` for all):
 
 ```text
+GET  /api/v1/scanner                  # filter/sort all stocks + buy/sell states
+POST /api/v1/backtests                # launch a backtest (background)
+GET  /api/v1/backtests/{id}           # status + results (metrics, curves)
+GET  /api/v1/backtests/{id}/trades    # complete trade list (paginated)
 POST /api/v1/admin/universe/sync      # refresh S&P 500 membership
 POST /api/v1/admin/prices/sync        # backfill/incremental daily prices
-POST /api/v1/admin/metadata/refresh   # market cap / exchange metadata
+POST /api/v1/admin/stocks/add         # track an extra/benchmark symbol (^GSPC)
 GET  /api/v1/admin/data-health        # coverage, staleness, gaps
 GET  /api/v1/stocks?search=apple      # list/search stocks
 GET  /api/v1/stocks/AAPL/prices       # daily OHLCV series

@@ -1,5 +1,8 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import Layout from './components/Layout.jsx'
+import BacktestDetail from './pages/BacktestDetail.jsx'
+import BacktestNew from './pages/BacktestNew.jsx'
+import Backtests from './pages/Backtests.jsx'
 import Dashboard from './pages/Dashboard.jsx'
 import Placeholder from './pages/Placeholder.jsx'
 import Scanner from './pages/Scanner.jsx'
@@ -14,7 +17,9 @@ export default function App() {
         <Route path="/stocks/:symbol" element={<StockDetail />} />
         <Route path="/signals" element={<Placeholder title="Signals" phase={3} />} />
         <Route path="/strategies" element={<Placeholder title="Strategies" phase={3} />} />
-        <Route path="/backtests" element={<Placeholder title="Backtests" phase={6} />} />
+        <Route path="/backtests" element={<Backtests />} />
+        <Route path="/backtests/new" element={<BacktestNew />} />
+        <Route path="/backtests/:id" element={<BacktestDetail />} />
         <Route path="/paper-accounts" element={<Placeholder title="Paper Accounts" phase={7} />} />
         <Route
           path="/competitions"

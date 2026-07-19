@@ -122,7 +122,18 @@ def download_history(
 
     out: dict[str, pd.DataFrame] = {}
     if len(yahoo_symbols) == 1:
-        out[yahoo_symbols[0]] = data.dropna(how="all")
+        # group_by="ticker" nests columns under the symbol even for a single
+        # ticker — flatten so frame_to_rows sees plain OHLCV column names.
+        frame = data
+        if isinstance(frame.columns, pd.MultiIndex):
+            try:
+                frame = frame[yahoo_symbols[0]]
+            except KeyError:
+                logger.warning("yahoo no data symbol=%s", yahoo_symbols[0])
+                return {}
+        frame = frame.dropna(how="all")
+        if not frame.empty:
+            out[yahoo_symbols[0]] = frame
         return out
 
     for symbol in yahoo_symbols:
