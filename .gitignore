@@ -22,3 +22,4 @@ certs/
 
 # Your real holdings — keep them out of version control.
 transactions.csv
+.gstack/
