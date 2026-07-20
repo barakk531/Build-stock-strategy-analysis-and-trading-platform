@@ -11,9 +11,10 @@ import Settings from './pages/Settings.jsx'
 import PaperAccountDetail from './pages/PaperAccountDetail.jsx'
 import PaperAccountNew from './pages/PaperAccountNew.jsx'
 import PaperAccounts from './pages/PaperAccounts.jsx'
-import Placeholder from './pages/Placeholder.jsx'
 import Scanner from './pages/Scanner.jsx'
+import Signals from './pages/Signals.jsx'
 import StockDetail from './pages/StockDetail.jsx'
+import Strategies from './pages/Strategies.jsx'
 
 export default function App() {
   return (
@@ -22,8 +23,8 @@ export default function App() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/scanner" element={<Scanner />} />
         <Route path="/stocks/:symbol" element={<StockDetail />} />
-        <Route path="/signals" element={<Placeholder title="Signals" phase={3} />} />
-        <Route path="/strategies" element={<Placeholder title="Strategies" phase={3} />} />
+        <Route path="/signals" element={<Signals />} />
+        <Route path="/strategies" element={<Strategies />} />
         <Route path="/backtests" element={<Backtests />} />
         <Route path="/backtests/new" element={<BacktestNew />} />
         <Route path="/backtests/:id" element={<BacktestDetail />} />

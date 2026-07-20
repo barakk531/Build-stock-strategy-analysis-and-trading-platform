@@ -1,0 +1,18 @@
+# Secrets & local state (never commit)
+.env
+.streamlit/secrets.toml
+data/portfolio.json
+
+# Downloaded logo binaries — regenerate with `python scripts/fetch_logos.py`
+assets/logos/*
+!assets/logos/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.ruff_cache/
+
+# OS
+.DS_Store

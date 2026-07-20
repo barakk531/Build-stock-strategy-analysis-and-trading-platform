@@ -77,7 +77,7 @@ export default function StockDetail() {
   })
   const allStocksQ = useQuery({
     queryKey: ['all-symbols'],
-    queryFn: () => listStocks({ limit: 510 }),
+    queryFn: () => listStocks({ limit: 500 }),
     staleTime: 5 * 60_000,
   })
 

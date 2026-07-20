@@ -1,0 +1,15 @@
+# Dark theme throughout, matching the plotly_dark charts and the app's ink
+# palette. (Secrets live in .streamlit/secrets.toml, which is git-ignored.)
+[theme]
+base = "dark"
+primaryColor = "#34d399"
+backgroundColor = "#0d0d0d"
+secondaryBackgroundColor = "#1a1a19"
+textColor = "#e5e7eb"
+font = "sans serif"
+
+[browser]
+gatherUsageStats = false
+
+[server]
+headless = true

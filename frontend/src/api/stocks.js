@@ -29,3 +29,19 @@ export async function listStocks(params) {
   const { data } = await api.get('/stocks', { params })
   return data
 }
+
+// Fetch every stock across all pages (the endpoint caps limit at 500). Used to
+// build a complete stock_id -> symbol map (e.g. the Signals page).
+export async function listAllStocks() {
+  const pageSize = 500
+  const items = []
+  let offset = 0
+  // Cap the loop defensively; the universe is ~500 stocks.
+  for (let page = 0; page < 20; page++) {
+    const { data } = await api.get('/stocks', { params: { limit: pageSize, offset } })
+    items.push(...(data.items ?? []))
+    offset += pageSize
+    if (!data.items?.length || items.length >= (data.total ?? items.length)) break
+  }
+  return items
+}
