@@ -62,11 +62,14 @@ export default function Scanner() {
   const page = Math.max(1, parseInt(params.page, 10) || 1)
 
   const queryParams = useMemo(() => {
+    // Watch-only filters client-side, so fetch the whole universe (the endpoint
+    // caps limit at 520) instead of one 50-row page — otherwise starred stocks
+    // that fall on other pages are invisible.
     const q = {
       sort: params.sort,
       order: params.order,
-      limit: PAGE_SIZE,
-      offset: (page - 1) * PAGE_SIZE,
+      limit: watchOnly ? 520 : PAGE_SIZE,
+      offset: watchOnly ? 0 : (page - 1) * PAGE_SIZE,
     }
     for (const key of [
       'search', 'sector', 'signal_type', 'price_vs_sma150', 'sma20_vs_sma50',
@@ -77,7 +80,7 @@ export default function Scanner() {
     if (params.buy_state === '1') q.buy_state = true
     if (params.sell_state === '1') q.sell_state = true
     return q
-  }, [params, page])
+  }, [params, page, watchOnly])
 
   const { data, isPending, isError, error } = useQuery({
     queryKey: ['scanner', queryParams],
@@ -116,7 +119,9 @@ export default function Scanner() {
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-2xl font-semibold">Scanner</h1>
         <p className="text-xs text-slate-500">
-          {data ? `${data.total} matches · S&P 500 · data ${data.items[0]?.trade_date ?? ''}` : ''}
+          {data
+            ? `${watchOnly ? `${rows.length} watched` : `${data.total} matches`} · S&P 500 · data ${data.items[0]?.trade_date ?? ''}`
+            : ''}
         </p>
       </div>
 
@@ -294,8 +299,8 @@ export default function Scanner() {
         )}
       </div>
 
-      {/* Pagination */}
-      {data && data.total > PAGE_SIZE && (
+      {/* Pagination (watch-only shows the whole filtered set on one page) */}
+      {!watchOnly && data && data.total > PAGE_SIZE && (
         <div className="flex items-center justify-between text-sm text-slate-400">
           <button
             disabled={page <= 1}
