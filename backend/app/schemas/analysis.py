@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.stock import SyncFailure
 
@@ -64,6 +64,13 @@ class StrategyOut(BaseModel):
     version: int
     parameters_json: dict
     is_active: bool
+
+
+class StrategyCreateIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    description: str | None = None
+    strategy_type: str = "rule_composer"
+    parameters: dict = Field(default_factory=dict)
 
 
 class EvaluateRequest(BaseModel):

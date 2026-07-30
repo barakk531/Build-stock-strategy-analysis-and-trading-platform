@@ -168,6 +168,124 @@ def test_leaderboard_ranks_risk_adjusted_with_full_payload(db, arena):
     assert payload["best_worst_trades"]  # the crash guarantees closed trades
 
 
+def _steady_bench_rows():
+    dates = [d.date() for d in pd.bdate_range("2024-01-02", END)]
+    return [
+        {
+            "trade_date": d,
+            "open": round(100.0 + 0.05 * i, 4),
+            "high": round((100.0 + 0.05 * i) * 1.01, 4),
+            "low": round((100.0 + 0.05 * i) * 0.99, 4),
+            "close": round(100.0 + 0.05 * i, 4),
+            "adjusted_close": round(100.0 + 0.05 * i, 4),
+            "volume": 1_000_000,
+            "dividend": 0.0,
+            "stock_split": 0.0,
+        }
+        for i, d in enumerate(dates)
+    ]
+
+
+@pytest.fixture()
+def bench_arena(db):
+    """A stock, a seeded benchmark index, and two accounts that use it — so the
+    leaderboard can add the S&P-style buy-and-hold competitor."""
+    from app.models.competition import Competition
+    from app.models.paper import PaperAccount
+    from app.models.stock import Stock
+    from app.repositories import price_repository, stock_repository
+    from app.schemas.paper import AccountCreateIn
+    from app.services.paper_trading import processor
+    from app.services.paper_trading import service as paper_service
+    from app.services.paper_trading.config import AccountSettings
+    from app.services.signals import detector
+
+    suffix = uuid.uuid4().hex[:6].upper()
+    symbol = f"ZB{suffix}"
+    bench_symbol = f"^KB{suffix}"
+
+    stock_repository.upsert_constituents(
+        db, [{"symbol": symbol, "yahoo_symbol": symbol, "company_name": "Bench Arena"}],
+        deactivate_missing=False,
+    )
+    stock = stock_repository.get_by_symbol(db, symbol)
+    price_repository.upsert_prices(db, stock.id, _price_rows())
+    detector.scan_all(db, symbols=[symbol], parameters=PARAMS)
+
+    bench_stock = stock_repository.ensure_stock(
+        db, bench_symbol, company_name="Bench Index", is_sp500=False
+    )
+    price_repository.upsert_prices(db, bench_stock.id, _steady_bench_rows())
+    db.commit()
+
+    def make(name, size_pct):
+        account = paper_service.create_account(
+            db,
+            AccountCreateIn(
+                name=name,
+                parameters=PARAMS,
+                initial_cash=100_000.0,
+                start_date=START,
+                settings=AccountSettings(
+                    benchmark_symbol=bench_symbol, position_size_percent=size_pct
+                ),
+            ),
+        )
+        processor.process_account(db, account, through=END)
+        return account
+
+    accounts = [make("ktest bench-a", 10), make("ktest bench-b", 50)]
+    yield {"accounts": accounts, "symbol": symbol, "bench_symbol": bench_symbol}
+
+    db.query(Competition).filter(Competition.name.like("ktest %")).delete(
+        synchronize_session=False
+    )
+    db.query(PaperAccount).filter(PaperAccount.name.like("ktest %")).delete(
+        synchronize_session=False
+    )
+    db.query(Stock).filter(Stock.symbol.in_([symbol, bench_symbol])).delete(
+        synchronize_session=False
+    )
+    db.commit()
+
+
+def test_benchmark_competitor_is_ranked_with_beat_market_kpis(db, bench_arena):
+    from app.models.competition import Competition, CompetitionAccount
+    from app.services.competition import service
+
+    competition = Competition(name="ktest bench-lb")
+    db.add(competition)
+    db.flush()
+    for account in bench_arena["accounts"]:
+        db.add(CompetitionAccount(competition_id=competition.id, paper_account_id=account.id))
+    db.commit()
+
+    payload = service.leaderboard(db, competition)
+    assert payload["benchmark_competitor"] is not None
+
+    rows = payload["leaderboard"]
+    benchmark_rows = [r for r in rows if r.get("is_benchmark")]
+    assert len(benchmark_rows) == 1
+    bm = benchmark_rows[0]
+    # Ranked alongside strategies, with real risk-adjusted metrics.
+    assert bm["rank"] is not None
+    assert bm["metrics"]["total_return_pct"] is not None
+    assert bm["metrics"]["max_drawdown_pct"] is not None
+    assert bm["account_name"] in payload["equity_curves"]
+
+    # Every strategy row carries a "beat the market" verdict + KPIs.
+    strategy_rows = [r for r in rows if not r.get("is_benchmark")]
+    assert len(strategy_rows) == 2
+    for row in strategy_rows:
+        assert isinstance(row["beats_benchmark"], bool)
+        assert "vs_benchmark_pct" in row
+        assert "pct_days_outperforming" in row
+        assert "information_ratio" in row
+
+    # All three competitors share one contiguous ranking.
+    assert sorted(r["rank"] for r in rows) == [1, 2, 3]
+
+
 def test_clone_copies_configuration_and_joins_competition(db, arena):
     from app.models.competition import Competition, CompetitionAccount
     from app.services.competition import service

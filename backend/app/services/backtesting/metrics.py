@@ -51,6 +51,61 @@ def align_benchmark(equity_index: pd.Index, benchmark: pd.Series | None) -> pd.S
     return aligned if len(aligned) >= 2 else None
 
 
+def beat_market_stats(equity: pd.Series, benchmark: pd.Series | None) -> dict[str, float | None]:
+    """"Beat the market" KPIs comparing an equity curve to a benchmark over
+    their shared calendar: share of days the strategy's cumulative return leads
+    the index, the information ratio (annualized mean/std of daily excess
+    return), and up/down capture (strategy vs index on index-up and index-down
+    days). All None when there is no overlap."""
+    empty = {
+        "pct_days_outperforming": None,
+        "information_ratio": None,
+        "up_capture_pct": None,
+        "down_capture_pct": None,
+    }
+    aligned = align_benchmark(equity.index, benchmark)
+    if aligned is None or equity.empty:
+        return empty
+
+    acc_curve = equity / float(equity.iloc[0])
+    ben_curve = aligned / float(aligned.iloc[0])
+    common = acc_curve.index.intersection(ben_curve.index)
+    outperform = (
+        float((acc_curve.loc[common] > ben_curve.loc[common]).mean() * 100.0)
+        if len(common)
+        else None
+    )
+
+    acc_ret = equity.pct_change().dropna()
+    ben_ret = aligned.pct_change().dropna()
+    days = acc_ret.index.intersection(ben_ret.index)
+    acc_ret, ben_ret = acc_ret.loc[days], ben_ret.loc[days]
+    excess = acc_ret - ben_ret
+    info_ratio = (
+        float(excess.mean() / excess.std(ddof=1) * math.sqrt(TRADING_DAYS_PER_YEAR))
+        if len(excess) > 1 and excess.std(ddof=1) > 0
+        else None
+    )
+
+    up, down = ben_ret > 0, ben_ret < 0
+    up_capture = (
+        float(acc_ret[up].mean() / ben_ret[up].mean() * 100.0)
+        if up.any() and ben_ret[up].mean() != 0
+        else None
+    )
+    down_capture = (
+        float(acc_ret[down].mean() / ben_ret[down].mean() * 100.0)
+        if down.any() and ben_ret[down].mean() != 0
+        else None
+    )
+    return {
+        "pct_days_outperforming": _round(outperform, 2),
+        "information_ratio": _round(info_ratio),
+        "up_capture_pct": _round(up_capture, 2),
+        "down_capture_pct": _round(down_capture, 2),
+    }
+
+
 def drawdown_curve(equity: pd.Series) -> pd.Series:
     """Fractional drawdown from the running peak (0 at highs, negative below)."""
     return equity / equity.cummax() - 1.0

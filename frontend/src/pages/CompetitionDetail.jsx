@@ -96,7 +96,9 @@ export default function CompetitionDetail() {
   if (isError) return <p className="text-sm text-red-400">Failed to load: {error?.message}</p>
 
   const rows = data.leaderboard ?? []
-  const accountNames = rows.filter((r) => r.metrics).map((r) => r.account_name)
+  // The S&P competitor is a ranked table row; the chart already draws it as the
+  // gray "Benchmark" line, so keep it out of the colored per-account series.
+  const accountNames = rows.filter((r) => r.metrics && !r.is_benchmark).map((r) => r.account_name)
   const colorOf = Object.fromEntries(
     accountNames.map((name, i) => [name, SERIES_COLORS[i % SERIES_COLORS.length]]),
   )
@@ -151,19 +153,44 @@ export default function CompetitionDetail() {
           <tbody className="divide-y divide-slate-800/60">
             {rows.map((row) => {
               const m = row.metrics
+              const vs = row.vs_benchmark_pct
               return (
-                <tr key={row.account_id} className="hover:bg-slate-900/60">
+                <tr
+                  key={row.account_id ?? row.account_name}
+                  className={row.is_benchmark
+                    ? 'border-l-2 border-amber-400/70 bg-amber-500/5'
+                    : 'hover:bg-slate-900/60'}
+                >
                   <td className="px-3 py-2 font-semibold text-slate-300">{row.rank ?? '—'}</td>
                   <td className="px-3 py-2">
-                    <span
-                      className="mr-2 inline-block h-2 w-2 rounded-full"
-                      style={{ background: colorOf[row.account_name] ?? '#475569' }}
-                    />
-                    <Link to={`/paper-accounts/${row.account_id}`} className="font-medium text-slate-100 hover:text-emerald-400">
-                      {row.account_name}
-                    </Link>
-                    {row.account_status !== 'ACTIVE' && (
-                      <span className="ml-2 text-xs text-slate-500">{row.account_status}</span>
+                    {row.is_benchmark ? (
+                      <span className="font-medium text-amber-300">
+                        {row.account_name}
+                        <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] tracking-wide text-amber-400 uppercase">
+                          the line to beat
+                        </span>
+                      </span>
+                    ) : (
+                      <>
+                        <span
+                          className="mr-2 inline-block h-2 w-2 rounded-full"
+                          style={{ background: colorOf[row.account_name] ?? '#475569' }}
+                        />
+                        <Link to={`/paper-accounts/${row.account_id}`} className="font-medium text-slate-100 hover:text-emerald-400">
+                          {row.account_name}
+                        </Link>
+                        {row.account_status !== 'ACTIVE' && (
+                          <span className="ml-2 text-xs text-slate-500">{row.account_status}</span>
+                        )}
+                        {vs != null && (
+                          <span
+                            title={`Days beating index: ${row.pct_days_outperforming ?? '—'}% · Info ratio: ${row.information_ratio ?? '—'} · Up/down capture: ${row.up_capture_pct ?? '—'}% / ${row.down_capture_pct ?? '—'}%`}
+                            className={`ml-2 rounded px-1.5 py-0.5 text-[10px] ${row.beats_benchmark ? 'bg-emerald-500/15 text-emerald-400' : 'bg-red-500/15 text-red-400'}`}
+                          >
+                            {row.beats_benchmark ? '▲ beating' : '▼ trailing'} S&P {formatPercent(vs)}
+                          </span>
+                        )}
+                      </>
                     )}
                   </td>
                   <td className="px-3 py-2 text-xs text-slate-400">
@@ -190,14 +217,16 @@ export default function CompetitionDetail() {
                     </td>
                   )}
                   <td className="px-3 py-2 text-right">
-                    <button
-                      onClick={() => clone.mutate({ accountId: row.account_id })}
-                      disabled={clone.isPending}
-                      title="Clone this configuration into a new account in this competition"
-                      className="rounded border border-slate-700 px-2 py-0.5 text-xs text-slate-400 hover:border-emerald-500 hover:text-emerald-300 disabled:opacity-40"
-                    >
-                      Clone
-                    </button>
+                    {!row.is_benchmark && (
+                      <button
+                        onClick={() => clone.mutate({ accountId: row.account_id })}
+                        disabled={clone.isPending}
+                        title="Clone this configuration into a new account in this competition"
+                        className="rounded border border-slate-700 px-2 py-0.5 text-xs text-slate-400 hover:border-emerald-500 hover:text-emerald-300 disabled:opacity-40"
+                      >
+                        Clone
+                      </button>
+                    )}
                   </td>
                 </tr>
               )

@@ -214,6 +214,11 @@ def leaderboard(db: Session, competition: Competition) -> dict[str, Any]:
         latest_equity = float(equity_full.iloc[-1])
         row["metrics"] = metrics
         row["alpha_pct"] = metrics["excess_return_pct"]
+        # "Beat the S&P 500": headline verdict (alpha) + per-day KPIs.
+        excess = metrics["excess_return_pct"]
+        row["beats_benchmark"] = excess is not None and excess >= 0
+        row["vs_benchmark_pct"] = excess
+        row.update(metrics_mod.beat_market_stats(equity, bench))
         row["current_exposure_pct"] = (
             round(float(positions_full.iloc[-1]) / latest_equity * 100, 2)
             if latest_equity > 0
@@ -254,6 +259,38 @@ def leaderboard(db: Session, competition: Competition) -> dict[str, Any]:
             }
         rows.append(row)
 
+    # The S&P 500 as a real, ranked competitor — the whole point is to beat it.
+    # Buy-and-hold the benchmark over the common window with the same starting
+    # capital, scored with the same metrics as every strategy.
+    benchmark_name = None
+    if bench is not None and len(bench) >= 2 and float(bench.iloc[0]) > 0:
+        base_b = float(bench.iloc[0])
+        initial_b = float(accounts[0].initial_cash) if accounts else 100_000.0
+        equity_b = bench / base_b * initial_b
+        metrics_b = metrics_mod.compute_metrics(equity_b, equity_b.copy(), initial_b, [])
+        benchmark_name = f"S&P 500 ({benchmark_symbol})" if benchmark_symbol else "S&P 500"
+        rows.append(
+            {
+                "account_id": None,
+                "account_name": benchmark_name,
+                "account_status": "BENCHMARK",
+                "strategy_name": "Buy & Hold",
+                "parameter_summary": "market index",
+                "start_date": window_start.isoformat(),
+                "initial_cash": round(initial_b, 2),
+                "current_cash": 0.0,
+                "metrics": metrics_b,
+                "is_benchmark": True,
+                "alpha_pct": 0.0,
+                "vs_benchmark_pct": 0.0,
+                "beats_benchmark": True,
+                "current_exposure_pct": 100.0,
+            }
+        )
+        equity_curves[benchmark_name] = [
+            [d.isoformat(), round(v / base_b * 100, 4)] for d, v in bench.items()
+        ]
+
     # Risk-adjusted default order: Sharpe desc, then max drawdown (shallower
     # first), then total return — never total return alone (spec §14).
     def sort_key(row: dict) -> tuple:
@@ -290,6 +327,7 @@ def leaderboard(db: Session, competition: Competition) -> dict[str, Any]:
         },
         "fairness": fairness,
         "benchmark_symbol": benchmark_symbol,
+        "benchmark_competitor": benchmark_name,
         "leaderboard": rows,
         "equity_curves": equity_curves,
         "drawdown_curves": drawdown_curves,

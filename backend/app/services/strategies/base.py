@@ -70,6 +70,12 @@ class Strategy(ABC):
     def validate_parameters(cls, raw: dict | None) -> BaseModel:
         return cls.parameters_model.model_validate(raw or {})
 
+    def min_history(self, parameters: BaseModel) -> int:
+        """Price rows required before this strategy can produce a state.
+        Callers skip stocks with fewer rows. Engines with a longest-window
+        parameter override this; the default is a safe minimum."""
+        return 2
+
     @abstractmethod
     def calculate_indicators(self, dataframe: pd.DataFrame, parameters: BaseModel) -> pd.DataFrame:
         """Append indicator columns (no look-ahead) to the price frame."""

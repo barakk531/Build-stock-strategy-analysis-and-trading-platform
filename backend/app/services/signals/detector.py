@@ -69,7 +69,7 @@ def scan_stock(
     params_hash = parameter_hash(params)
 
     prices = price_repository.get_prices(db, stock.id)
-    if len(prices) < params.sma_long_window + 1:
+    if len(prices) < engine.min_history(params):
         return {
             "symbol": stock.symbol,
             "events": 0,

@@ -26,8 +26,9 @@ SMA_LONG_SLOPE = "sma_long_slope_percent"
 def prices_to_frame(rows: list) -> pd.DataFrame:
     """Build the calculator input frame from DailyPrice rows (chronological)."""
     def col(name: str) -> list[float]:
+        # getattr default keeps callers that pass rows without high/low working.
         return [
-            float(value) if (value := getattr(r, name)) is not None else np.nan for r in rows
+            float(value) if (value := getattr(r, name, None)) is not None else np.nan for r in rows
         ]
 
     frame = pd.DataFrame(
@@ -36,6 +37,8 @@ def prices_to_frame(rows: list) -> pd.DataFrame:
             "adjusted_close": col("adjusted_close"),
             "close": col("close"),
             "open": col("open"),
+            "high": col("high"),
+            "low": col("low"),
             "volume": col("volume"),
         }
     )

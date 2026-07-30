@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from app.services.strategies.base import Strategy
+from app.services.strategies.rule_composer import RuleComposerStrategy
 from app.services.strategies.sma_trend_volume import SmaTrendVolumeStrategy
 
 STRATEGIES: dict[str, type[Strategy]] = {
     SmaTrendVolumeStrategy.strategy_type: SmaTrendVolumeStrategy,
+    RuleComposerStrategy.strategy_type: RuleComposerStrategy,
 }
 
 

@@ -119,3 +119,31 @@ def test_exposure_and_turnover():
     assert out["exposure_pct"] == pytest.approx(50.0)
     # (100+100)/2 / mean equity 100 / 1 year
     assert out["annual_turnover"] == pytest.approx(1.0)
+
+
+def test_beat_market_stats_leveraged_account():
+    # Account earns exactly 2x the benchmark's daily return each day, over an
+    # up/down oscillating index -> up & down capture both 200%, positive info
+    # ratio, and its compounding curve leads the index nearly every day.
+    import numpy as np
+
+    ben_ret = np.array([0.01, -0.005] * 20)
+    acc_ret = 2.0 * ben_ret
+    ben = _series((100.0 * np.cumprod(1.0 + ben_ret)).tolist())
+    acc = _series((100.0 * np.cumprod(1.0 + acc_ret)).tolist())
+
+    stats = metrics.beat_market_stats(acc, ben)
+    assert stats["up_capture_pct"] == pytest.approx(200.0, abs=1.0)
+    assert stats["down_capture_pct"] == pytest.approx(200.0, abs=1.0)
+    assert stats["information_ratio"] > 0
+    assert stats["pct_days_outperforming"] > 90.0
+
+
+def test_beat_market_stats_without_benchmark_is_all_none():
+    acc = _series([100.0, 101.0, 102.0, 103.0])
+    assert metrics.beat_market_stats(acc, None) == {
+        "pct_days_outperforming": None,
+        "information_ratio": None,
+        "up_capture_pct": None,
+        "down_capture_pct": None,
+    }

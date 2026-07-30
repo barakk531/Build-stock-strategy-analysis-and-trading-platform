@@ -81,6 +81,9 @@ class SmaTrendVolumeStrategy(Strategy):
     )
     parameters_model: ClassVar[type[BaseModel]] = SmaTrendVolumeParams
 
+    def min_history(self, parameters: SmaTrendVolumeParams) -> int:
+        return parameters.sma_long_window + 1
+
     def calculate_indicators(
         self, dataframe: pd.DataFrame, parameters: SmaTrendVolumeParams
     ) -> pd.DataFrame:
