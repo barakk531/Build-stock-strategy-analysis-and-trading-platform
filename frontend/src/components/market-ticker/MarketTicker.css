@@ -1,0 +1,154 @@
+/* Scrolling market-ticker strip. Dark, compact, seamless CSS-transform loop.
+   Colors mirror the app's Tailwind slate/emerald/red palette. */
+
+.mkt-ticker {
+  display: flex;
+  align-items: stretch;
+  height: 40px;
+  background: #0b1220;
+  border-bottom: 1px solid #1e293b; /* slate-800 */
+  color: #cbd5e1; /* slate-300 */
+  font-size: 13px;
+  line-height: 1;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Fixed MARKET label on the left; only the items to its right scroll. */
+.mkt-ticker__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 0 12px;
+  border-right: 1px solid #1e293b;
+  background: #0b1220;
+  z-index: 1;
+}
+.mkt-ticker__market {
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #34d399; /* emerald-400 — matches the platform brand */
+  font-size: 12px;
+}
+.mkt-ticker__note {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b; /* slate-500 */
+}
+
+.mkt-ticker__message {
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.mkt-ticker__viewport {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.mkt-ticker__track {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  white-space: nowrap;
+  will-change: transform;
+  animation: mkt-ticker-scroll 80s linear infinite;
+}
+
+/* Two identical copies live in the track, so translating by exactly -50%
+   lands copy 2 where copy 1 started — no jump, no gap. */
+@keyframes mkt-ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Pause on hover, and when the tab is hidden (via the is-paused class). Both
+   only pause play-state — they never restart the animation. */
+.mkt-ticker__track:hover,
+.mkt-ticker__track.is-paused {
+  animation-play-state: paused;
+}
+
+/* Respect the OS reduced-motion setting: stop the animation and let the user
+   scroll the row manually instead. */
+@media (prefers-reduced-motion: reduce) {
+  .mkt-ticker__track {
+    animation: none;
+  }
+  .mkt-ticker__viewport {
+    overflow-x: auto;
+  }
+}
+
+/* Items */
+.mkt-ticker__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 14px;
+  border-left: 1px solid #1e293b; /* thin separator */
+  text-decoration: none;
+  color: inherit;
+  transition: background-color 0.15s ease;
+}
+.mkt-ticker__item:hover {
+  background: rgba(148, 163, 184, 0.1); /* subtle "clickable" cue */
+}
+.mkt-ticker__symbol {
+  font-weight: 700;
+  color: #e2e8f0; /* slate-200 */
+}
+.mkt-ticker__price {
+  color: #cbd5e1;
+  font-variant-numeric: tabular-nums;
+}
+.mkt-ticker__change,
+.mkt-ticker__pct {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Directional coloring */
+.mkt-ticker__item--up .mkt-ticker__arrow,
+.mkt-ticker__item--up .mkt-ticker__change,
+.mkt-ticker__item--up .mkt-ticker__pct {
+  color: #34d399; /* green */
+}
+.mkt-ticker__item--down .mkt-ticker__arrow,
+.mkt-ticker__item--down .mkt-ticker__change,
+.mkt-ticker__item--down .mkt-ticker__pct {
+  color: #f87171; /* red */
+}
+.mkt-ticker__item--flat .mkt-ticker__arrow,
+.mkt-ticker__item--flat .mkt-ticker__change,
+.mkt-ticker__item--flat .mkt-ticker__pct {
+  color: #94a3b8; /* neutral slate */
+}
+
+/* Mobile: one line, drop the $ change and the note, keep symbol/price/%. */
+@media (max-width: 640px) {
+  .mkt-ticker {
+    height: 38px;
+    font-size: 12px;
+  }
+  .mkt-ticker__note {
+    display: none;
+  }
+  .mkt-ticker__change {
+    display: none;
+  }
+  .mkt-ticker__item {
+    padding: 0 10px;
+    gap: 4px;
+  }
+}

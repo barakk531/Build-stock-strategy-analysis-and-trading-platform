@@ -5,6 +5,7 @@ from app.api.v1.endpoints import (
     backtests,
     competitions,
     health,
+    market_ticker,
     paper_accounts,
     scanner,
     signals,
@@ -19,6 +20,7 @@ api_router = APIRouter()
 api_router.include_router(health.router, tags=["health"])
 api_router.include_router(stocks.router, tags=["stocks"])
 api_router.include_router(scanner.router, tags=["scanner"])
+api_router.include_router(market_ticker.router, tags=["market-ticker"])
 api_router.include_router(signals.router, tags=["signals"])
 api_router.include_router(strategies.router, tags=["strategies"])
 
