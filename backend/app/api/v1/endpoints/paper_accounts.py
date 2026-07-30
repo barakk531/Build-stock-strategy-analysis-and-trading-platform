@@ -80,7 +80,15 @@ def create_account(
 @router.get("", response_model=AccountListOut)
 def list_accounts(db: DbDep) -> AccountListOut:
     accounts = list(db.scalars(select(PaperAccount).order_by(PaperAccount.id)))
-    return AccountListOut(items=[_enrich(db, a) for a in accounts], total=len(accounts))
+    # Three aggregate queries total, not three per account (was N+1).
+    summaries = paper_service.summarize_many(db, accounts)
+    items = []
+    for account in accounts:
+        out = AccountOut.model_validate(account)
+        for key, value in summaries[account.id].items():
+            setattr(out, key, value)
+        items.append(out)
+    return AccountListOut(items=items, total=len(accounts))
 
 
 @router.get("/{account_id}", response_model=AccountDetailOut)

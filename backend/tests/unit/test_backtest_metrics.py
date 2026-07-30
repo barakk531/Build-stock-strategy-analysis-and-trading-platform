@@ -91,6 +91,25 @@ def test_curve_points_and_benchmark_rebase():
     assert rebased[1][1] == pytest.approx(110.0)
 
 
+def test_align_benchmark_clips_to_equity_calendar():
+    # Benchmark has extra days at both ends and a gap in the middle (ffill).
+    bench_dates = [d.date() for d in pd.bdate_range("2026-01-01", periods=8)]
+    benchmark = pd.Series([100, 101, 102, 103, 104, 105, 106, 107], index=bench_dates)
+    equity_dates = bench_dates[2:6]  # a strict sub-window
+    aligned = metrics.align_benchmark(pd.Index(equity_dates), benchmark)
+    assert list(aligned.index) == equity_dates
+    assert aligned.iloc[0] == 102
+
+
+def test_align_benchmark_none_when_no_overlap():
+    bench_dates = [d.date() for d in pd.bdate_range("2020-01-01", periods=3)]
+    benchmark = pd.Series([1.0, 2.0, 3.0], index=bench_dates)
+    future_dates = [d.date() for d in pd.bdate_range("2030-01-01", periods=3)]
+    assert metrics.align_benchmark(pd.Index(future_dates), benchmark) is None
+    assert metrics.align_benchmark(pd.Index(future_dates), None) is None
+    assert metrics.align_benchmark(pd.Index(future_dates), pd.Series(dtype=float)) is None
+
+
 def test_exposure_and_turnover():
     equity = _series([100.0] * 252)  # one flat trading year
     positions = _series([50.0] * 252)

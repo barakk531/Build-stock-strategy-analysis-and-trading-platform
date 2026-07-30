@@ -306,3 +306,69 @@ def test_rerun_is_deterministic():
 def test_empty_panel_raises():
     with pytest.raises(BacktestDataError):
         run_simulation(_config(), {}, [])
+
+
+def test_overlong_benchmark_symbol_rejected():
+    # Stock.symbol is String(20); an unvalidated value here would reach
+    # ensure_stock's INSERT and abort the whole database transaction.
+    with pytest.raises(Exception, match="benchmark symbol"):
+        _config(benchmark_symbol="X" * 25)
+
+
+def test_invalid_symbol_characters_rejected():
+    with pytest.raises(Exception, match="invalid symbols"):
+        _config(symbols=["AAPL; DROP TABLE stocks"])
+
+
+def test_missing_open_retries_next_day_instead_of_burning_signal():
+    # Day 1's open is null (a real data anomaly: close present, open absent).
+    # Transition mode would never re-emit the signal, so the engine must
+    # retry forward rather than treat it as unfillable.
+    days = _days(4)
+    panel = {"AAA": _frame(days, [100.0, float("nan"), 102.0, 103.0], [100.0, 101.0, 102.0, 103.0])}
+    orders = [OrderIntent("AAA", "BUY", signal_date=days[0], execution_date=days[1])]
+    result = run_simulation(_config(), panel, orders)
+
+    assert result.skip_summary == {}  # succeeded on retry — nothing skipped
+    trade = result.trades[0]
+    assert trade.entry_date == days[2]  # rolled from the null-open day to the next
+    assert trade.entry_price == pytest.approx(102.0 * 1.01)
+
+
+def test_missing_open_expires_after_staleness_window():
+    # Open is null for the entire span (a persistently illiquid/halted print);
+    # the retry must eventually give up rather than loop forever.
+    days = _days(20)
+    panel = {
+        "AAA": _frame(days, [float("nan")] * 20, [100.0] * 20),
+    }
+    orders = [OrderIntent("AAA", "BUY", signal_date=days[0], execution_date=days[1])]
+    result = run_simulation(_config(), panel, orders)
+
+    assert result.trades == []
+    assert result.skip_summary == {"no_price_at_execution": 1}
+    skip = result.skips[0]
+    assert skip.reason == "no_price_at_execution"
+    assert "staleness" in skip.detail
+
+
+def test_sell_for_unheld_stock_supersedes_a_pending_buy():
+    # A BUY is scheduled for day 2 (not yet filled); a SELL for the same
+    # symbol arrives on day 1 targeting no position — the strategy has
+    # already reversed, so the stale pending BUY must be cancelled, not
+    # blindly filled a day later into a position the strategy no longer wants.
+    days = _days(3)
+    panel = {"AAA": _frame(days, [100.0] * 3, [100.0] * 3)}
+    orders = [
+        OrderIntent("AAA", "BUY", signal_date=days[0], execution_date=days[2]),
+        OrderIntent("AAA", "SELL", signal_date=days[1], execution_date=days[1]),
+    ]
+    result = run_simulation(_config(), panel, orders)
+
+    assert result.trades == []  # neither side ever executed
+    assert result.skip_summary == {"superseded_by_sell": 1}
+    assert result.skip_summary.get("sell_no_position") is None
+    skip = result.skips[0]
+    assert skip.reason == "superseded_by_sell"
+    assert skip.signal_date == days[0]  # the cancelled order was the BUY
+    assert skip.signal_type == "BUY"

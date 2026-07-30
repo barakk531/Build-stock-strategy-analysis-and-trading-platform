@@ -206,11 +206,7 @@ def leaderboard(db: Session, competition: Competition) -> dict[str, Any]:
         open_rows = paper_service.open_positions_with_marks(db, account)
         trades += [{"status": "OPEN"}] * len(open_rows)
 
-        bench_clipped = None
-        if bench is not None:
-            bench_clipped = bench.reindex(equity.index).ffill().dropna()
-            if len(bench_clipped) < 2:
-                bench_clipped = None
+        bench_clipped = metrics_mod.align_benchmark(equity.index, bench)
 
         metrics = metrics_mod.compute_metrics(
             equity, positions, base, trades, benchmark=bench_clipped

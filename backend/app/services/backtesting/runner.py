@@ -206,12 +206,10 @@ def _execute(db: Session, run: BacktestRun) -> dict:
     )
 
     equity = result.equity["equity"]
-    if benchmark is not None:
-        # Align to the equity calendar so benchmark/excess returns measure the
-        # exact same span as the strategy (edge days can differ otherwise).
-        benchmark = benchmark.reindex(equity.index).ffill().dropna()
-        if len(benchmark) < 2:
-            benchmark, benchmark_note = None, f"benchmark {config.benchmark_symbol}: no overlap"
+    aligned_benchmark = metrics_mod.align_benchmark(equity.index, benchmark)
+    if benchmark is not None and aligned_benchmark is None:
+        benchmark_note = f"benchmark {config.benchmark_symbol}: no overlap with the equity curve"
+    benchmark = aligned_benchmark
     trade_dicts = [
         {
             "status": t.status,

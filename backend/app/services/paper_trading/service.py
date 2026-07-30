@@ -8,7 +8,7 @@ basis for fair strategy comparison in Phase 8.
 from __future__ import annotations
 
 import pandas as pd
-from sqlalchemy import func, select
+from sqlalchemy import func, select, true
 from sqlalchemy.orm import Session
 
 from app.core.timeutils import market_today
@@ -64,25 +64,66 @@ def latest_snapshot(db: Session, account_id: int) -> AccountEquitySnapshot | Non
 
 
 def summarize(db: Session, account: PaperAccount) -> dict:
-    """Headline numbers for list rows and detail headers."""
-    snapshot = latest_snapshot(db, account.id)
-    open_count = db.scalar(
-        select(func.count()).where(
-            PaperPosition.paper_account_id == account.id, PaperPosition.status == "OPEN"
-        )
+    """Headline numbers for one account (detail header, single-account
+    endpoints). For a list of accounts use summarize_many — three queries
+    total instead of three per account."""
+    return summarize_many(db, [account])[account.id]
+
+
+def summarize_many(db: Session, accounts: list[PaperAccount]) -> dict[int, dict]:
+    """Same headline numbers as summarize, batched: one grouped-count query
+    for open positions, one for pending orders, and one latest-snapshot
+    lookup per account via a LATERAL join — independent of how many accounts
+    are passed, instead of 3 queries × N accounts."""
+    if not accounts:
+        return {}
+    ids = [a.id for a in accounts]
+
+    open_counts = dict(
+        db.execute(
+            select(PaperPosition.paper_account_id, func.count())
+            .where(PaperPosition.paper_account_id.in_(ids), PaperPosition.status == "OPEN")
+            .group_by(PaperPosition.paper_account_id)
+        ).all()
     )
-    pending_count = db.scalar(
-        select(func.count()).where(
-            PaperOrder.paper_account_id == account.id, PaperOrder.status == "PENDING"
-        )
+    pending_counts = dict(
+        db.execute(
+            select(PaperOrder.paper_account_id, func.count())
+            .where(PaperOrder.paper_account_id.in_(ids), PaperOrder.status == "PENDING")
+            .group_by(PaperOrder.paper_account_id)
+        ).all()
     )
-    return {
-        "total_equity": float(snapshot.total_equity) if snapshot else float(account.cash_balance),
-        "total_return_pct": float(snapshot.cumulative_return) * 100 if snapshot else None,
-        "open_positions": open_count or 0,
-        "pending_orders": pending_count or 0,
-        "last_snapshot_date": snapshot.snapshot_date if snapshot else None,
+    snapshot_lateral = (
+        select(AccountEquitySnapshot.total_equity, AccountEquitySnapshot.cumulative_return,
+               AccountEquitySnapshot.snapshot_date)
+        .where(AccountEquitySnapshot.paper_account_id == PaperAccount.id)
+        .order_by(AccountEquitySnapshot.snapshot_date.desc())
+        .limit(1)
+        .lateral()
+    )
+    latest_snapshots = {
+        row.id: row
+        for row in db.execute(
+            select(PaperAccount.id, snapshot_lateral.c.total_equity,
+                   snapshot_lateral.c.cumulative_return, snapshot_lateral.c.snapshot_date)
+            .select_from(PaperAccount.__table__.join(snapshot_lateral, true()))
+            .where(PaperAccount.id.in_(ids))
+        ).all()
     }
+
+    out: dict[int, dict] = {}
+    for account in accounts:
+        snapshot = latest_snapshots.get(account.id)
+        out[account.id] = {
+            "total_equity": float(snapshot.total_equity)
+            if snapshot
+            else float(account.cash_balance),
+            "total_return_pct": float(snapshot.cumulative_return) * 100 if snapshot else None,
+            "open_positions": open_counts.get(account.id, 0),
+            "pending_orders": pending_counts.get(account.id, 0),
+            "last_snapshot_date": snapshot.snapshot_date if snapshot else None,
+        }
+    return out
 
 
 def open_positions_with_marks(db: Session, account: PaperAccount) -> list[dict]:
@@ -196,6 +237,13 @@ def performance(db: Session, account: PaperAccount) -> dict:
     benchmark, benchmark_note = benchmark_service.get_series(
         db, settings.get("benchmark_symbol"), dates[0], dates[-1]
     )
+    # Align to the account's own snapshot calendar (paused stretches or
+    # data gaps can otherwise leave benchmark_return_pct measuring a
+    # slightly different span than the account's own equity curve).
+    aligned_benchmark = metrics_mod.align_benchmark(equity.index, benchmark)
+    if benchmark is not None and aligned_benchmark is None:
+        benchmark_note = benchmark_note or "benchmark has no overlap with account snapshots"
+    benchmark = aligned_benchmark
 
     metrics = metrics_mod.compute_metrics(
         equity,

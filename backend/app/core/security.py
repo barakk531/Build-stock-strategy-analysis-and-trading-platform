@@ -31,7 +31,13 @@ def require_admin(api_key: Annotated[str | None, Depends(_header)]) -> None:
     configured = get_settings().admin_api_key
     if not configured:
         return  # development mode — auth disabled
-    if api_key is None or not secrets.compare_digest(api_key, configured):
+    # compare_digest(str, str) raises TypeError on non-ASCII input; encoding
+    # to bytes first keeps the comparison constant-time for any Unicode key
+    # instead of turning a wrong-but-valid config into a 500.
+    valid = api_key is not None and secrets.compare_digest(
+        api_key.encode("utf-8"), configured.encode("utf-8")
+    )
+    if not valid:
         raise HTTPException(
             status_code=401,
             detail="Invalid or missing API key (X-API-Key header)",

@@ -38,6 +38,19 @@ def _to_datetime_series(series: pd.Series) -> pd.Series:
     return out
 
 
+def align_benchmark(equity_index: pd.Index, benchmark: pd.Series | None) -> pd.Series | None:
+    """Clip/forward-fill a benchmark series onto the equity calendar so
+    returns are measured over the exact same span as the strategy — a raw
+    benchmark series can have different start/end dates (missing data at the
+    edges, a different trading calendar), which would otherwise understate or
+    overstate benchmark_return_pct relative to the strategy's own window.
+    Returns None when fewer than 2 points remain after alignment."""
+    if benchmark is None or benchmark.empty:
+        return None
+    aligned = benchmark.reindex(equity_index).ffill().dropna()
+    return aligned if len(aligned) >= 2 else None
+
+
 def drawdown_curve(equity: pd.Series) -> pd.Series:
     """Fractional drawdown from the running peak (0 at highs, negative below)."""
     return equity / equity.cummax() - 1.0
@@ -193,10 +206,8 @@ def benchmark_curve_points(
     benchmark: pd.Series, equity_index: pd.Index, initial_cash: float
 ) -> list[list]:
     """Benchmark rebased to starting capital, aligned to the equity calendar."""
-    if benchmark is None or benchmark.empty:
-        return []
-    aligned = benchmark.reindex(equity_index).ffill().dropna()
-    if aligned.empty:
+    aligned = align_benchmark(equity_index, benchmark)
+    if aligned is None:
         return []
     base = float(aligned.iloc[0])
     if base <= 0:
